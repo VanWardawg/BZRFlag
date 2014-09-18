@@ -23,6 +23,7 @@
 import sys
 import math
 import time
+from random import randrange
 
 from bzrc import BZRC, Command
 
@@ -33,9 +34,16 @@ class Agent(object):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         self.commands = []
+        self.moveTime = randrange(3,8)
+        self.shoot = randrange(1,2) + .5
+        self.time = 0
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
+        time_passed = time_diff - self.time
+        self.time = time_diff
+        self.moveTime -= time_passed
+        self.shoot -= time_passed
         mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
         self.mytanks = mytanks
         self.othertanks = othertanks
@@ -43,13 +51,36 @@ class Agent(object):
         self.shots = shots
         self.enemies = [tank for tank in othertanks if tank.color !=
                         self.constants['team']]
-
         self.commands = []
-
         for tank in mytanks:
-            self.attack_enemies(tank)
+            print str(self.shoot) + " " + str(self.moveTime) + " " + str(tank.index)
+            if self.shoot < 0:
+                self.attack(tank)
+            if self.moveTime < 0:
+                self.move_sixty_degrees(tank)
+            else:
+                self.move_forward(tank)
+
+        if self.shoot < 0:
+            self.shoot = randrange(1,2) + .5
+
+        if self.moveTime < 0:
+            self.moveTime = randrange(3,8)
 
         results = self.bzrc.do_commands(self.commands)
+
+    def move_sixty_degrees(self, tank):
+        command = Command(tank.index, 0, 60, False)
+        self.commands.append(command)
+
+    def attack(self, tank):
+        command = Command(tank.index, 0, 0, True)
+        self.commands.append(command)
+
+
+    def move_forward(self,tank):
+        command = Command(tank.index, 1, 0, False)
+        self.commands.append(command)
 
     def attack_enemies(self, tank):
         """Find the closest enemy and chase it, shooting as you go."""
