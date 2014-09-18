@@ -36,6 +36,7 @@ class Agent(object):
         self.commands = []
         self.moveTime = randrange(3,8)
         self.shoot = randrange(1,2) + .5
+        self.angleTime = 0
         self.time = 0
 
     def tick(self, time_diff):
@@ -56,25 +57,30 @@ class Agent(object):
             print str(self.shoot) + " " + str(self.moveTime) + " " + str(tank.index)
             if self.shoot < 0:
                 self.attack(tank)
-            if self.moveTime < 0:
+            if self.moveTime < 0 and self.angleTime == 0:
                 self.move_sixty_degrees(tank)
-            else:
+            elif self.moveTime > 0:
                 self.move_forward(tank)
+                self.angleTime = 0
 
-        if self.shoot < 0:
+        if self.shoot < 0 :
             self.shoot = randrange(1,2) + .5
 
-        if self.moveTime < 0:
+        if self.moveTime < 0 and self.angleTime == 0:
+            self.angleTime = time_diff
+
+
+        if self.moveTime < 0 and (time_diff - self.angleTime > 2):
             self.moveTime = randrange(3,8)
 
         results = self.bzrc.do_commands(self.commands)
 
     def move_sixty_degrees(self, tank):
-        command = Command(tank.index, 0, 60, False)
+        command = Command(tank.index, 1, 60, False)
         self.commands.append(command)
 
     def attack(self, tank):
-        command = Command(tank.index, 0, 0, True)
+        command = Command(tank.index, 1, 0, True)
         self.commands.append(command)
 
 
