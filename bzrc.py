@@ -229,19 +229,7 @@ class BZRC:
         while True:
             line = self.read_arr()
             if line[0] == 'mytank':
-                tank = Answer()
-                tank.index = int(line[1])
-                tank.callsign = line[2]
-                tank.status = line[3]
-                tank.shots_avail = int(line[4])
-                tank.time_to_reload = float(line[5])
-                tank.flag = line[6]
-                tank.x = float(line[7])
-                tank.y = float(line[8])
-                tank.angle = float(line[9])
-                tank.vx = float(line[10])
-                tank.vy = float(line[11])
-                tank.angvel = float(line[12])
+                tank = Tank(line)
                 tanks.append(tank)
             elif line[0] == 'end':
                 break
@@ -283,16 +271,7 @@ class BZRC:
         while True:
             line = self.read_arr()
             if line[0] == 'base':
-                base = Answer()
-                base.color = line[1]
-                base.corner1_x = float(line[2])
-                base.corner1_y = float(line[3])
-                base.corner2_x = float(line[4])
-                base.corner2_y = float(line[5])
-                base.corner3_x = float(line[6])
-                base.corner3_y = float(line[7])
-                base.corner4_x = float(line[8])
-                base.corner4_y = float(line[9])
+                base = Base(line)
                 bases.append(base)
             elif line[0] == 'end':
                 break
@@ -438,6 +417,43 @@ class BZRC:
                 result_shoot = False
             results.append((result_speed, result_angvel, result_shoot))
         return results
+
+class Tank(object):
+    def __init__(self,line):
+        self.index = int(line[1])
+        self.callsign = line[2]
+        self.status = line[3]
+        self.shots_avail = int(line[4])
+        self.time_to_reload = float(line[5])
+        self.flag = line[6]
+        self.x = float(line[7])
+        self.y = float(line[8])
+        self.angle = float(line[9])
+        self.vx = float(line[10])
+        self.vy = float(line[11])
+        self.angvel = float(line[12])
+
+class Base(object):
+    def __init__(self,line):
+        self.color = line[1]
+        self.corner1_x = float(line[2])
+        self.corner1_y = float(line[3])
+        self.corner2_x = float(line[4])
+        self.corner2_y = float(line[5])
+        self.corner3_x = float(line[6])
+        self.corner3_y = float(line[7])
+        self.corner4_x = float(line[8])
+        self.corner4_y = float(line[9])
+        self.potential_field = None
+        self.size = 10
+        self.weight = 1
+        self.middle_x,self.middle_y,self.radius = self.calculate_radius_of_square(self.corner1_x,self.corner1_y,self.corner2_y,self.corner4_x,self.corner4_y)
+
+    def calculate_radius_of_square(self,x1,y1,y2,x4,y4):
+        middle_x = (x1 + x4)/2
+        middle_y = (y1 + y2)/2
+        radius = math.sqrt(math.pow((x4 - middle_x),2) + math.pow((y4 - middle_y),2))
+        return middle_x,middle_y,radius
 
 
 class Answer(object):
