@@ -114,7 +114,7 @@ class PotentialField(object):
 
     def initialize_fields(self):
         for base in self.bases:
-            if base.color == "red":
+            if base.color != self.constants["team"]:
                 self.attractive_field.append(base)
 
     def recalculate(self):
@@ -131,18 +131,11 @@ class PotentialField(object):
             goalSize = item.size
             goalWeight = item.weight
             distance = math.sqrt(math.pow((goalX - x),2) + math.pow((goalY - y),2))
-            #print "Current Location, x: " + str(x) + ", y: " + str(y)
-            #print "GoalX: " + str(goalX) + " GoalY: " + str(goalY) + " GoalRadius: " + str(goalRadius) + " GoalSize: " + str(goalSize) + " GoalWeight: " + str(goalWeight)
-            #print "Distance: " + str(distance)
             angle = math.degrees(math.atan2(goalY-y, goalX-x))
             deltaX,deltaY = self.positive_potential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
             sumDeltaX += deltaX
             sumDeltaY += deltaY
             sumAngle += angle
-            # try:
-            #     input("Press enter to continue")
-            # except SyntaxError:
-            #     pass
         return sumDeltaX, sumDeltaY, sumAngle
 
     def calculate_full_potential_field(self):
@@ -151,11 +144,6 @@ class PotentialField(object):
             x = []
             for j in range(-int(self.constants["worldsize"])/2, int(self.constants["worldsize"])/2):
                 deltaX,deltaY,angle = self.calculate_potential_field_value(i,j,False)
-                #print "Location (" + str(i) + "," + str(j) + "):" + " angle: " + str(angle) + " deltaX: " + str(deltaX) + " deltaY: " + str(deltaY)
-                # try:
-                #     input("Press enter to continue")
-                # except SyntaxError:
-                #     pass
                 x.append(PotentialFieldValue(deltaX, deltaY, angle))
             arr.append(x)
         return arr
@@ -165,11 +153,11 @@ class PotentialField(object):
             deltaX = 0
             deltaY = 0;
         elif distance >= radius and distance <= size + radius:
-            deltaX = weight*(distance - radius)*math.cos(angle)
-            deltaY = weight*(distance - radius)*math.sin(angle)
+            deltaX = weight*(distance - radius)*math.cos(math.radians(angle))
+            deltaY = weight*(distance - radius)*math.sin(math.radians(angle))
         else:
-            deltaX = weight*(size)*math.cos(angle)
-            deltaY = weight*(size)*math.sin(angle)
+            deltaX = weight*(size)*math.cos(math.radians(angle))
+            deltaY = weight*(size)*math.sin(math.radians(angle))
         return deltaX, deltaY
 
     def negative_potential_field_values(self,distance,radius,angle,size,weight):
@@ -186,7 +174,7 @@ class PotentialField(object):
 
     def visualize_potential_field(self):
         print "Visualize it"
-        self.plotter.plot(self.calculate_full_potential_field(),[])
+        self.plotter.plot(self.calculate_potential_field_value,[])
 
 class PotentialFieldValue(object):
     def __init__(self,deltaX,deltaY,angle):

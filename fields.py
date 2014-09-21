@@ -64,7 +64,8 @@ class PotentialFieldPlotter(object):
     def generate_field_function(self):
         def function(x, y):
             '''User-defined field function.'''
-            return self.potential_field[x][y].deltaX,self.potential_field[x][y].deltaY
+            f_X,f_Y,angle = self.potential_field(x,y,False)
+            return f_X,f_Y
         return function
 
 
