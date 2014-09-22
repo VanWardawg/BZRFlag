@@ -34,8 +34,12 @@ class Agent(object):
     def __init__(self, bzrc):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
+        teams = self.get_teams()
         self.potentialField = PotentialField(self.constants, self.bzrc)
-        self.potentialField.visualize_potential_field()
+        while self.mainTeam 
+        self.mainTeam = randrange(0,len(teams))
+        self.swapTeams = 0
+        #self.potentialField.visualize_potential_field()
         self.commands = []
         self.shootTime = 0
         self.recalculateTime = 0
@@ -43,22 +47,28 @@ class Agent(object):
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
-        if self.shootTime ==0:
+        if self.shootTime ==0 and self.recalculateTime == 0 and self.swapTeams == 0:
             self.shootTime = time_diff
+            self.recalculateTime = time_diff
+            self.swapTeams = time_diff
         self.commands = []
-        mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
-        self.mytanks = mytanks
-        self.othertanks = othertanks
-        self.flags = flags
-        self.shots = shots
-        self.enemies = [tank for tank in othertanks if tank.color !=
-                        self.constants['team']]
+        self.mytanks = self.bzrc.get_mytanks()
+        self.teams = self.bzrc.get_teams()
         if time_diff - self.shootTime > 1:
             self.shoot()
             self.shootTime = time_diff
-        self.move_by_potential_field()
+        if time_diff - self.recalculateTime > .75:
+            #self.potentialField.recalculate()
+            self.recalculateTime = time_diff
 
-        results = self.bzrc.do_commands(self.commands)
+        if time_diff - self.swapTeams > 1000:
+
+            self.swapTeams = time_diff
+        self.move_by_potential_field()
+        try:
+            results = self.bzrc.do_commands(self.commands)
+        except UnexpectedResponse:
+            print "error"
 
     def shoot(self):
         for tank in self.mytanks:
@@ -97,23 +107,41 @@ class PotentialField(object):
     def __init__(self, constants, bzrc):
         self.constants = constants
         self.bzrc = bzrc
-        self.flags = self.bzrc.get_flags()
         self.bases = self.bzrc.get_bases()
+        self.obstacles = self.bzrc.get_obstacles()
         self.attractive_field = []
+        self.repulsive_field = []
+        self.dynamic_attractive_field = []
+        self.dynamic_repulsive_field = []
         self.flag_attractive_field = []
-        self.flag_repulsive_field = []
         self.initialize_fields()
         self.plotter = PotentialFieldPlotter()
 
     def initialize_fields(self):
         for base in self.bases:
-            if base.color == "red":#self.constants["team"]:
+            if base.color == "red":# != self.constants["team"]:
                 self.attractive_field.append(base)
             elif base.color == self.constants["team"]:
+                #self.repulsive_field.append(base)
                 self.flag_attractive_field.append(base)
+        # for obstacle in self.obstacles:
+        #     self.repulsive_field.append(obstacle)
+
+        #self.recalculate()
 
     def recalculate(self):
-        print "recalculating"
+        mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
+        self.dynamic_attractive_field = []
+        self.dynamic_repulsive_field = []
+        for flag in flags:
+            if flag.color != self.constants["team"]:
+                self.attractive_field.append(flag)
+        for enemy in othertanks:
+            self.dynamic_repulsive_field.append(enemy)
+        for other in mytanks:
+            self.dynamic_repulsive_field.append(other)
+        for shot in shots:
+            self.dynamic_repulsive_field.append(shot)
 
     def calculate_potential_field_value(self,x,y, flag):
         sumDeltaX = 0
@@ -122,6 +150,9 @@ class PotentialField(object):
             attractive_field = self.flag_attractive_field
         else:
             attractive_field = self.attractive_field
+        attractive_field += self.dynamic_attractive_field
+
+        #attractive field
         for item in attractive_field:
             goalX = item.middle_x
             goalY = item.middle_y
@@ -133,6 +164,23 @@ class PotentialField(object):
             deltaX,deltaY = self.positive_potential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
             sumDeltaX += deltaX
             sumDeltaY += deltaY
+        #repulsive fields + tangential
+        repulsive_field = self.repulsive_field + self.dynamic_repulsive_field
+        for item in self.repulsive_field:
+            goalX = item.middle_x
+            goalY = item.middle_y
+            goalRadius = item.radius
+            goalSize = item.size
+            goalWeight = item.weight
+            distance = math.sqrt(math.pow((goalX - x),2) + math.pow((goalY - y),2))
+            angle = math.atan2(goalY-y, goalX-x)
+            if item.tangential:
+                deltaX,deltaY = self.negative_potential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
+            else:
+                deltaX,deltaY = self.negative_tangential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
+            sumDeltaX += deltaX
+            sumDeltaY += deltaY
+        
         return sumDeltaX, sumDeltaY
 
     def calculate_full_potential_field(self):
@@ -158,6 +206,21 @@ class PotentialField(object):
         return deltaX, deltaY
 
     def negative_potential_field_values(self,distance,radius,angle,size,weight):
+        if distance < radius:
+            deltaX = -float(1e3000)
+            deltaY = -float(1e3000)
+        elif distance >= radius and distance <= size + radius:
+            deltaX = -weight*(distance - radius + size)*math.cos(angle)
+            deltaY = -weight*(distance - radius + size)*math.sin(angle)
+        else:
+            deltaX = 0
+            deltaY = 0;
+        return deltaX, deltaY
+
+
+
+    def negative_tangential_field_values(self,distance,radius,angle,size,weight):
+        angle = angle + math.radians(90)
         if distance < radius:
             deltaX = -float(1e3000)
             deltaY = -float(1e3000)
