@@ -246,7 +246,7 @@ class PotentialField(object):
 
     def visualize_potential_field(self):
         print "Visualize it"
-        self.plotter.plot(self.calculate_potential_field_value,[])
+        self.plotter.plot(self.calculate_potential_field_value,self.obstacles)
 
 class PotentialFieldValue(object):
     def __init__(self,deltaX,deltaY,angle):

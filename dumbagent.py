@@ -54,7 +54,6 @@ class Agent(object):
                         self.constants['team']]
         self.commands = []
         for tank in mytanks:
-            print str(self.shoot) + " " + str(self.moveTime) + " " + str(tank.index)
             if self.shoot < 0:
                 self.attack(tank)
             if self.moveTime < 0 and self.angleTime == 0:

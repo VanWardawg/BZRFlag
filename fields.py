@@ -109,11 +109,11 @@ class PotentialFieldPlotter(object):
         s = 'unset arrow\n'
 
         for obs in obstacles:
-            last_point = obs[0]
-            for cur_point in obs[1:]:
+            last_point = obs.bounds[0]
+            for cur_point in obs.bounds[1:]:
                 s += self.draw_line(last_point, cur_point)
                 last_point = cur_point
-            s += self.draw_line(last_point, obs[0])
+            s += self.draw_line(last_point, obs.bounds[0])
         return s
 
     def plot_field(self, function):
