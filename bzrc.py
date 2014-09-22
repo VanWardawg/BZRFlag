@@ -467,7 +467,7 @@ class Flag(object):
         self.middle_y = self.y
         self.tangental = False
         self.radius = 1
-        self.size = 10
+        self.size = 5
         self.weight = 100
 
 class Other_Tank(object):
@@ -483,8 +483,8 @@ class Other_Tank(object):
         self.angle = float(line[7])
         self.tangental = True
         self.radius = 5
-        self.size = 1
-        self.weight = 1
+        self.size = 15
+        self.weight = 50
 
 class Shot(object):
     def __init__(self,line):
@@ -496,8 +496,8 @@ class Shot(object):
         self.vy = float(line[4])
         self.tangental = True
         self.radius = 1
-        self.size = 1
-        self.weight = 10
+        self.size = 25
+        self.weight = 100
 
 class Answer(object):
     """BZRC returns an Answer for things like tanks, obstacles, etc.

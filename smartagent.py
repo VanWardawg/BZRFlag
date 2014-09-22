@@ -69,9 +69,9 @@ class Agent(object):
 
         if time_diff - self.swapTeams > 1000:
             print "swapping teams"
-            self.mainTeam = randrange(0,len(teams))
+            self.mainTeam = randrange(0,len(self.teams))
             while self.mainTeam == self.index:
-                self.mainTeam = randrange(0,len(teams))
+                self.mainTeam = randrange(0,len(self.teams))
             self.swapTeams = time_diff
 
         self.move_by_potential_field()
@@ -144,7 +144,7 @@ class PotentialField(object):
         self.dynamic_attractive_field = []
         self.dynamic_repulsive_field = []
         for flag in flags:
-            if flag.color == choosenTeam:
+            if flag.color == "red":
                 flag.weight = 1000
             if flag.color != self.constants["team"]:
                 self.attractive_field.append(flag)
@@ -228,8 +228,6 @@ class PotentialField(object):
             deltaX = 0
             deltaY = 0;
         return deltaX, deltaY
-
-
 
     def negative_tangential_field_values(self,distance,radius,angle,size,weight):
         angle = angle + math.radians(90)
