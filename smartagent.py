@@ -43,11 +43,8 @@ class Agent(object):
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
-        if self.shootTime ==0 and self.recalculateTime == 0 and self.moveTime == 0:
+        if self.shootTime ==0:
             self.shootTime = time_diff
-            self.recalculateTime = time_diff
-            self.moveTime = time_diff
-            print "setting values"
         self.commands = []
         mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
         self.mytanks = mytanks
@@ -57,41 +54,34 @@ class Agent(object):
         self.enemies = [tank for tank in othertanks if tank.color !=
                         self.constants['team']]
         if time_diff - self.shootTime > 1:
-            print "shooting"
             self.shoot()
             self.shootTime = time_diff
-        if time_diff - self.shootTime > .75:
-            print "recalculating"
-            self.potentialField.recalculate()
-            self.recalculateTime = time_diff
-        if time_diff - self.shootTime > .25 :
-            print "moving"
-            self.move_by_potential_field()
-            self.moveTime = time_diff
-
-        # for tank in mytanks:
-        #     print tank
+        self.move_by_potential_field()
 
         results = self.bzrc.do_commands(self.commands)
 
     def shoot(self):
-        command = Command(self.mytanks[0], self.mytanks[0].vx, self.mytanks[0].angle,True)
+        for tank in self.mytanks:
+            command = Command(tank.index, 0, 0,True)
+            self.commands.append(command)
 
     def move_by_potential_field(self):
-        tank = self.mytanks[0]
-        #for tank in mytanks:
-        print str(tank.x) + " " + str(tank.y)
-        deltaX,deltaY,angle = self.potentialField.calculate_potential_field_value(tank.x,tank.y,tank.flag)
-        velocity = math.sqrt(math.pow(deltaX,2) + math.pow(deltaY,2))
-        if velocity > 1:
-            velocity = 1
-        elif velocity < -1:
-            velocity = -1
-        angle = self.normalize_angle(angle)
-        print "velocity: " + str(velocity) + " angle: " + str(angle)
-        command = Command(tank.index, 1, angle, False)
-        self.commands.append(command)
-        print tank
+        for tank in self.mytanks:
+            flag = tank.flag != "-" and tank.flag != self.constants["team"]
+            deltaX,deltaY = self.potentialField.calculate_potential_field_value(tank.x,tank.y,flag)
+            velocity = math.sqrt(math.pow(deltaX,2) + math.pow(deltaY,2))
+            if velocity > 1:
+                velocity = 1
+            elif velocity < -1:
+                velocity = -1
+            angle = math.atan2(deltaY, deltaX)
+            angle = self.normalize_angle(angle - tank.angle)
+            if math.fabs(angle) < .4:
+                angle = angle/2
+            if math.fabs(angle) < .1:
+                angle = 0
+            command = Command(tank.index, 1, angle, False)
+            self.commands.append(command)
 
     def normalize_angle(self, angle):
         """Make any angle be between +/- pi."""
@@ -107,15 +97,20 @@ class PotentialField(object):
     def __init__(self, constants, bzrc):
         self.constants = constants
         self.bzrc = bzrc
+        self.flags = self.bzrc.get_flags()
         self.bases = self.bzrc.get_bases()
         self.attractive_field = []
+        self.flag_attractive_field = []
+        self.flag_repulsive_field = []
         self.initialize_fields()
         self.plotter = PotentialFieldPlotter()
 
     def initialize_fields(self):
         for base in self.bases:
-            if base.color != self.constants["team"]:
+            if base.color == "red":#self.constants["team"]:
                 self.attractive_field.append(base)
+            elif base.color == self.constants["team"]:
+                self.flag_attractive_field.append(base)
 
     def recalculate(self):
         print "recalculating"
@@ -123,20 +118,22 @@ class PotentialField(object):
     def calculate_potential_field_value(self,x,y, flag):
         sumDeltaX = 0
         sumDeltaY = 0
-        sumAngle = 0
-        for item in self.attractive_field:
+        if flag == True:
+            attractive_field = self.flag_attractive_field
+        else:
+            attractive_field = self.attractive_field
+        for item in attractive_field:
             goalX = item.middle_x
             goalY = item.middle_y
             goalRadius = item.radius
             goalSize = item.size
             goalWeight = item.weight
             distance = math.sqrt(math.pow((goalX - x),2) + math.pow((goalY - y),2))
-            angle = math.degrees(math.atan2(goalY-y, goalX-x))
+            angle = math.atan2(goalY-y, goalX-x)
             deltaX,deltaY = self.positive_potential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
             sumDeltaX += deltaX
             sumDeltaY += deltaY
-            sumAngle += angle
-        return sumDeltaX, sumDeltaY, sumAngle
+        return sumDeltaX, sumDeltaY
 
     def calculate_full_potential_field(self):
         arr = []
@@ -153,11 +150,11 @@ class PotentialField(object):
             deltaX = 0
             deltaY = 0;
         elif distance >= radius and distance <= size + radius:
-            deltaX = weight*(distance - radius)*math.cos(math.radians(angle))
-            deltaY = weight*(distance - radius)*math.sin(math.radians(angle))
+            deltaX = weight*(distance - radius)*math.cos(angle)
+            deltaY = weight*(distance - radius)*math.sin(angle)
         else:
-            deltaX = weight*(size)*math.cos(math.radians(angle))
-            deltaY = weight*(size)*math.sin(math.radians(angle))
+            deltaX = weight*(size)*math.cos(angle)
+            deltaY = weight*(size)*math.sin(angle)
         return deltaX, deltaY
 
     def negative_potential_field_values(self,distance,radius,angle,size,weight):
