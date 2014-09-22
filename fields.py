@@ -5,6 +5,7 @@ intentionally avoided "giving it all away."
 from __future__ import division
 from itertools import cycle
 import subprocess
+import math
 
 try:
     from numpy import linspace
@@ -131,7 +132,8 @@ class PotentialFieldPlotter(object):
             plotvalues = self.gpi_point(x, y, f_x, f_y)
             if plotvalues is not None:
                 x1, y1, x2, y2 = plotvalues
-                s += '%s %s %s %s\n' % (x1, y1, x2, y2)
+                if not math.isnan(x1) and not math.isnan(y1) and not math.isnan(x2) and not math.isnan(y2):
+                    s += '%s %s %s %s\n' % (x1, y1, x2, y2)
         s += 'e\n'
         return s
 

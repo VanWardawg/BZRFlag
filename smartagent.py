@@ -34,12 +34,18 @@ class Agent(object):
     def __init__(self, bzrc):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
-        teams = self.get_teams()
-        self.potentialField = PotentialField(self.constants, self.bzrc)
-        while self.mainTeam 
+        teams = self.bzrc.get_teams()
+        for ind,team in enumerate(teams):
+            if team.color == self.constants["team"]:
+                self.index = ind
         self.mainTeam = randrange(0,len(teams))
+        while self.mainTeam == self.index:
+            self.mainTeam = randrange(0,len(teams))
+
+        self.potentialField = PotentialField(self.constants, self.bzrc, teams[self.mainTeam].color)
+
         self.swapTeams = 0
-        #self.potentialField.visualize_potential_field()
+        self.potentialField.visualize_potential_field()
         self.commands = []
         self.shootTime = 0
         self.recalculateTime = 0
@@ -57,13 +63,17 @@ class Agent(object):
         if time_diff - self.shootTime > 1:
             self.shoot()
             self.shootTime = time_diff
-        if time_diff - self.recalculateTime > .75:
-            #self.potentialField.recalculate()
+        if time_diff - self.recalculateTime > .10:
+            self.potentialField.recalculate(self.teams[self.mainTeam].color)
             self.recalculateTime = time_diff
 
         if time_diff - self.swapTeams > 1000:
-
+            print "swapping teams"
+            self.mainTeam = randrange(0,len(teams))
+            while self.mainTeam == self.index:
+                self.mainTeam = randrange(0,len(teams))
             self.swapTeams = time_diff
+
         self.move_by_potential_field()
         try:
             results = self.bzrc.do_commands(self.commands)
@@ -104,7 +114,7 @@ class Agent(object):
 
 class PotentialField(object):
     """Class handles all potential field logic for an agent"""
-    def __init__(self, constants, bzrc):
+    def __init__(self, constants, bzrc, choosenTeam):
         self.constants = constants
         self.bzrc = bzrc
         self.bases = self.bzrc.get_bases()
@@ -114,26 +124,28 @@ class PotentialField(object):
         self.dynamic_attractive_field = []
         self.dynamic_repulsive_field = []
         self.flag_attractive_field = []
-        self.initialize_fields()
+        self.initialize_fields(choosenTeam)
         self.plotter = PotentialFieldPlotter()
 
-    def initialize_fields(self):
+    def initialize_fields(self, team):
         for base in self.bases:
-            if base.color == "red":# != self.constants["team"]:
+            if base.color != self.constants["team"]:
                 self.attractive_field.append(base)
             elif base.color == self.constants["team"]:
-                #self.repulsive_field.append(base)
+                self.repulsive_field.append(base)
                 self.flag_attractive_field.append(base)
-        # for obstacle in self.obstacles:
-        #     self.repulsive_field.append(obstacle)
+        for obstacle in self.obstacles:
+            self.repulsive_field.append(obstacle)
 
-        #self.recalculate()
+        self.recalculate(team)
 
-    def recalculate(self):
+    def recalculate(self, choosenTeam):
         mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
         self.dynamic_attractive_field = []
         self.dynamic_repulsive_field = []
         for flag in flags:
+            if flag.color == choosenTeam:
+                flag.weight = 1000
             if flag.color != self.constants["team"]:
                 self.attractive_field.append(flag)
         for enemy in othertanks:
@@ -143,7 +155,7 @@ class PotentialField(object):
         for shot in shots:
             self.dynamic_repulsive_field.append(shot)
 
-    def calculate_potential_field_value(self,x,y, flag):
+    def calculate_potential_field_value(self, x, y, flag):
         sumDeltaX = 0
         sumDeltaY = 0
         if flag == True:
