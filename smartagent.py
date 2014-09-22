@@ -99,6 +99,9 @@ class PotentialField(object):
         self.bzrc = bzrc
         self.flags = self.bzrc.get_flags()
         self.bases = self.bzrc.get_bases()
+        self.obstacles = self.bzrc.get_obstacles()
+        self.obstacle_group = []
+        self.repulsive_field = []
         self.attractive_field = []
         self.flag_attractive_field = []
         self.flag_repulsive_field = []
@@ -111,11 +114,13 @@ class PotentialField(object):
                 self.attractive_field.append(base)
             elif base.color == self.constants["team"]:
                 self.flag_attractive_field.append(base)
+        for obs in self.obsticals:
+            repulsive_field.append(obs)
 
     def recalculate(self):
         print "recalculating"
 
-    def calculate_potential_field_value(self,x,y, flag):
+    def calculate_potential_field_value(self, x, y, flag):
         sumDeltaX = 0
         sumDeltaY = 0
         if flag == True:

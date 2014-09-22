@@ -154,8 +154,7 @@ class BZRC:
             i, rest = self.expect_multi(('obstacle',),('end',))
             if i == 1:
                 break
-            obstacle = [(float(x), float(y)) for (x, y) in
-                    zip(rest[::2], rest[1::2])]
+            obstacle = Obstacle(line)
             obstacles.append(obstacle)
         return obstacles
 
@@ -185,11 +184,7 @@ class BZRC:
         while True:
             line = self.read_arr()
             if line[0] == 'flag':
-                flag = Answer()
-                flag.color = line[1]
-                flag.poss_color = line[2]
-                flag.x = float(line[3])
-                flag.y = float(line[4])
+                flag = Flag(line)
                 flags.append(flag)
             elif line[0] == 'end':
                 break
@@ -207,11 +202,7 @@ class BZRC:
         while True:
             line = self.read_arr()
             if line[0] == 'shot':
-                shot = Answer()
-                shot.x = float(line[1])
-                shot.y = float(line[2])
-                shot.vx = float(line[3])
-                shot.vy = float(line[4])
+                shot = Shot(line)
                 shots.append(shot)
             elif line[0] == 'end':
                 break
@@ -247,14 +238,7 @@ class BZRC:
         while True:
             line = self.read_arr()
             if line[0] == 'othertank':
-                tank = Answer()
-                tank.callsign = line[1]
-                tank.color = line[2]
-                tank.status = line[3]
-                tank.flag = line[4]
-                tank.x = float(line[5])
-                tank.y = float(line[6])
-                tank.angle = float(line[7])
+                tank = Other_Tank(line)
                 tanks.append(tank)
             elif line[0] == 'end':
                 break
@@ -432,6 +416,7 @@ class Tank(object):
         self.vx = float(line[10])
         self.vy = float(line[11])
         self.angvel = float(line[12])
+        self.tangental = True
 
 class Base(object):
     def __init__(self,line):
@@ -448,6 +433,7 @@ class Base(object):
         self.size = 10
         self.weight = 1
         self.middle_x,self.middle_y,self.radius = self.calculate_radius_of_square(self.corner1_x,self.corner1_y,self.corner2_y,self.corner4_x,self.corner4_y)
+        self.tangental = False
 
     def calculate_radius_of_square(self,x1,y1,y2,x4,y4):
         middle_x = (x1 + x4)/2
@@ -455,6 +441,63 @@ class Base(object):
         radius = math.sqrt(math.pow((x4 - middle_x),2) + math.pow((y4 - middle_y),2))
         return middle_x,middle_y,radius
 
+class Obstacle(object):
+    def __init__(self,line):
+        self.bounds = [(float(x), float(y)) for (x, y) in
+        zip(rest[::2], rest[1::2])]
+        self.tangental = False
+        self.middle_x,self.middle_y,self.radius = self.calculate_radius_of_square(self.bounds)
+        self.size = self.radius
+        self.weight = 10
+
+    def calculate_radius_of_square(self,bounds):
+        middle_x = (bounds[0].x + bounds[1].x)/2
+        middle_y = (bounds[0].y + bounds[2].y)/2
+        radius = math.sqrt(math.pow((bounds[1].x - middle_x),2) + math.pow((bounds[2].y - middle_y),2))
+        return middle_x,middle_y,radius
+
+# middle_x middle_y item.radius item.size item.weight
+class Flag(object):
+    def __init__(self,line):
+        self.color = line[1]
+        self.poss_color = line[2]
+        self.x = float(line[3])
+        self.y = float(line[4])
+        self.middle_x = self.x
+        self.middle_y = self.y
+        self.tangental = False
+        self.radius = 1
+        self.size = 10
+        self.weight = 100
+
+class Other_Tank(object):
+    def __init__(self,line):
+        self.callsign = line[1]
+        self.color = line[2]
+        self.status = line[3]
+        self.flag = line[4]
+        self.x = float(line[5])
+        self.y = float(line[6])
+        self.middle_x = self.x
+        self.middle_y = self.y
+        self.angle = float(line[7])
+        self.tangental = True
+        self.radius = 5
+        self.size = 1
+        self.weight = 1
+
+class Shot(object):
+    def __init__(self,line):
+        self.x = float(line[1])
+        self.y = float(line[2])
+        self.middle_x = self.x
+        self.middle_y = self.y
+        self.vx = float(line[3])
+        self.vy = float(line[4])
+        self.tangental = false
+        self.radius = 1
+        self.size = 1
+        self.weight = 10
 
 class Answer(object):
     """BZRC returns an Answer for things like tanks, obstacles, etc.
