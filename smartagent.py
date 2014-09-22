@@ -128,16 +128,16 @@ class PotentialField(object):
         self.plotter = PotentialFieldPlotter()
 
     def initialize_fields(self, team):
-        for base in self.bases:
-            if base.color != self.constants["team"]:
-                self.attractive_field.append(base)
-            elif base.color == self.constants["team"]:
-                self.repulsive_field.append(base)
-                self.flag_attractive_field.append(base)
+        # for base in self.bases:
+        #     if base.color != self.constants["team"]:
+        #         self.attractive_field.append(base)
+        #     elif base.color == self.constants["team"]:
+        #         self.repulsive_field.append(base)
+        #         self.flag_attractive_field.append(base)
         for obstacle in self.obstacles:
             self.repulsive_field.append(obstacle)
 
-        self.recalculate(team)
+        #self.recalculate(team)
 
     def recalculate(self, choosenTeam):
         mytanks, othertanks, flags, shots = self.bzrc.get_lots_o_stuff()
@@ -186,7 +186,7 @@ class PotentialField(object):
             goalWeight = item.weight
             distance = math.sqrt(math.pow((goalX - x),2) + math.pow((goalY - y),2))
             angle = math.atan2(goalY-y, goalX-x)
-            if item.tangential:
+            if item.tangential == False:
                 deltaX,deltaY = self.negative_potential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
             else:
                 deltaX,deltaY = self.negative_tangential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
