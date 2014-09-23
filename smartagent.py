@@ -45,7 +45,7 @@ class Agent(object):
         self.potentialField = PotentialField(self.constants, self.bzrc, teams[self.mainTeam].color)
 
         self.swapTeams = 0
-        self.potentialField.visualize_potential_field()
+        # self.potentialField.visualize_potential_field()
         self.commands = []
         self.shootTime = 0
         self.recalculateTime = 0
