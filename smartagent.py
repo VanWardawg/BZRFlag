@@ -144,7 +144,7 @@ class PotentialField(object):
         self.dynamic_attractive_field = []
         self.dynamic_repulsive_field = []
         for flag in flags:
-            if flag.color == "red":
+            if flag.color == choosenTeam:
                 flag.weight = 1000
             if flag.color != self.constants["team"]:
                 self.attractive_field.append(flag)
