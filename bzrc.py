@@ -429,7 +429,6 @@ class Base(object):
         self.corner3_y = float(line[7])
         self.corner4_x = float(line[8])
         self.corner4_y = float(line[9])
-        self.potential_field = None
         self.size = 10
         self.weight = 1
         self.middle_x,self.middle_y,self.radius = self.calculate_radius_of_square(self.corner1_x,self.corner1_y,self.corner2_y,self.corner4_x,self.corner4_y)
@@ -445,10 +444,10 @@ class Obstacle(object):
     def __init__(self,rest):
         self.bounds = [(float(x), float(y)) for (x, y) in
         zip(rest[::2], rest[1::2])]
-        self.tangential = False
+        self.tangential = True
         self.middle_x,self.middle_y,self.radius = self.calculate_radius_of_square(self.bounds)
-        self.size = self.radius*2
-        self.weight = 90
+        self.size = self.radius+2
+        self.weight = 100
 
     def calculate_radius_of_square(self,bounds):
         middle_x = (bounds[0][0] + bounds[1][0])/2
@@ -465,7 +464,7 @@ class Flag(object):
         self.y = float(line[4])
         self.middle_x = self.x
         self.middle_y = self.y
-        self.tangental = False
+        self.tangential = False
         self.radius = 1
         self.size = 5
         self.weight = 100
@@ -481,9 +480,9 @@ class Other_Tank(object):
         self.middle_x = self.x
         self.middle_y = self.y
         self.angle = float(line[7])
-        self.tangental = True
-        self.radius = 5
-        self.size = 15
+        self.tangential = True
+        self.radius = 2
+        self.size = 6
         self.weight = 50
 
 class Shot(object):
@@ -494,10 +493,10 @@ class Shot(object):
         self.middle_y = self.y
         self.vx = float(line[3])
         self.vy = float(line[4])
-        self.tangental = True
-        self.radius = 1
-        self.size = 25
-        self.weight = 100
+        self.tangential = True
+        self.radius = 5
+        self.size = 7
+        self.weight = 200
 
 class Answer(object):
     """BZRC returns an Answer for things like tanks, obstacles, etc.
