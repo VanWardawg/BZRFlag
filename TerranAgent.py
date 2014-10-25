@@ -143,7 +143,7 @@ class CommandCenter(object):
         """Some time has passed; decide what to do next."""
         if self.prev_time == 0:
             self.prev_time = time_diff
-        if time_diff - self.prev_time > .0001:
+        if time_diff - self.prev_time > .01:
             self.prev_time = time_diff
             self.mytanks,self.othertanks,self.flags,self.shots = self.use_bzrc('get_lots_o_stuff',None)
     
@@ -162,6 +162,8 @@ class CommandCenter(object):
             self.lock.release()
 
     def do_commands(self,commands):
+        # self.commands.append(commands)
+        # if len(self.commands) > 10:
         self.use_bzrc('do_commands',commands)
 
     def get_team_index(self):
