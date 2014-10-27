@@ -22,6 +22,7 @@ class Marine(threading.Thread):
         self.moveTime = 0
         #self.sensorTower.visualize_potential_field()
         self.frozenTime = 0
+        self.calculateGridTime = 0
         self.new = True
         print "Marine " + str(index) + " ready to go!"
 
@@ -32,10 +33,11 @@ class Marine(threading.Thread):
             self.tick(time_diff)
 
     def tick(self, time_diff):
-        if self.shootTime ==0 and self.recalculateTime == 0 and self.swapTeams == 0:
+        if self.shootTime ==0 and self.recalculateTime == 0 and self.swapTeams == 0 and self.calculateGridTime == 0:
             self.shootTime = time_diff
             self.recalculateTime = time_diff
             self.swapTeams = time_diff
+            self.calculateGridTime = time_diff
         self.commands = []
         oldme = self.me
         self.me = self.commandCenter.get_marine(self.myIndex)
@@ -69,6 +71,9 @@ class Marine(threading.Thread):
             self.mainTeam = teams[self.mainTeam]
             self.swapTeams = time_diff
             print "Marine " + str(self.myindex) + " switching to target: " + str(self.mainTeam.color)
+        if time_diff - self.calculateGridTime > 5:
+            self.hitGrid()
+            self.calculateGridTime = time_diff
         self.move_by_potential_field()
         results = self.commandCenter.do_commands(self.commands)
 
@@ -102,6 +107,12 @@ class Marine(threading.Thread):
             angle -= 2 * math.pi
         return angle
 
+    def hitGrid(self):
+        occGridPos, occGrid = self.commandCenter.get_occgrid(self.myIndex)
+        for i in xrange(self.constants["occgrid_width"]):
+            for j in xrange(self.constants["occgrid_width"]):
+                self.commandCenter.grid.hitSquare(occGrid[i][j] == "1", occGridPos.x + j, occGridPos.y + i)
+
 class CommandCenter(object):
     """Class handles all command and control logic for a teams tanks."""
 
@@ -125,13 +136,14 @@ class CommandCenter(object):
         self.prev_time = 0
         self.lock = threading.Lock()
         self.mytanks,self.othertanks,self.flags,self.shots = self.bzrc.get_lots_o_stuff()
+        self.grid = Grid(self.constants["worldsize"])
         print "Command Center Beginning Attack"
         print "Target firing on: " + str(mainTeam.color)
         print "Deploying " + str(min(self.foodSupply,len(self.mytanks))) + " marines"
         for i in range(0,min(self.foodSupply,len(self.mytanks))):
             marine = Marine(self.mytanks[i],i,self,self.constants,mainTeam)
             marine.start()
-            self.army.append(marine);
+            self.army.append(marine)
 
     def get_marine(self, index):
         return self.mytanks[index]
@@ -175,7 +187,7 @@ class CommandCenter(object):
         return self.obstacles
 
     def get_lots_o_stuff(self):
-        return self.mytanks,self.othertanks,self.flags, self.shots;
+        return self.mytanks,self.othertanks,self.flags, self.shots
 
 class SensorTower(object):
     """Class handles all potential field logic for an agent"""
@@ -269,7 +281,7 @@ class SensorTower(object):
     def positive_potential_field_values(self,distance,radius,angle,size,weight):
         if distance < radius:
             deltaX = 0
-            deltaY = 0;
+            deltaY = 0
         elif distance >= radius and distance <= size + radius:
             deltaX = weight*(distance - radius)*math.cos(angle)
             deltaY = weight*(distance - radius)*math.sin(angle)
@@ -287,7 +299,7 @@ class SensorTower(object):
             deltaY = -weight*(distance - radius + size)*math.sin(angle)
         else:
             deltaX = 0
-            deltaY = 0;
+            deltaY = 0
         return deltaX, deltaY
 
     def negative_tangential_field_values(self,distance,radius,angle,size,weight):
@@ -300,7 +312,7 @@ class SensorTower(object):
             deltaY = -weight*(distance - radius + size)*math.sin(angle)
         else:
             deltaX = 0
-            deltaY = 0;
+            deltaY = 0
         return deltaX, deltaY
 
     def visualize_potential_field(self):
@@ -318,6 +330,35 @@ class PotentialFieldValue(object):
     def __repr__(self):
         return "(" + str(self.deltaX) + "," + str(self.deltaY) + "," + str(self.angle) + ")"
 
+class Grid:
+    """Class handles storing and manipulating the occupancy grid"""
+
+    def __init__(self, worldsize):
+        self.grid = []
+        for i in xrange(-int(worldsize)):
+            self.grid.append([])
+            for j in xrange(-int(worldsize)):
+                self.grid[j].append(OccupancySquare())
+
+    def hitSquare(self, isOccupied, x, y):
+        self.grid[y][x].hitSquare(isOccupied)
+
+class OccupancySquare:
+    """Class handles a single square in the occupancy grid"""
+
+    def __init__(self):
+        """Start with it having a probability of 0, then as hits happen,
+            calculate the new probability"""
+        self.probabilityOfOccupied = 0
+        self.occupiedHitCount = 0
+        self.hits = 0
+
+    def hitSquare(self, isOccupied):
+        self.hits += 1
+        """insert CORRECT math here for calculating the new probability"""
+        if isOccupied:
+            self.occupiedHitCount += 1
+        self.probabilityOfOccupied = self.occupiedHitCount / self.hits
 
 def main():
     # Process CLI arguments.
