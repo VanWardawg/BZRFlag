@@ -1,8 +1,10 @@
 import sys
 import math
 import time
+from numpy import *
 from random import randrange
 from fields import PotentialFieldPlotter
+from grid_filter_gl import GridFilter
 import threading
 from bzrc import BZRC, Command, UnexpectedResponse
 
@@ -33,10 +35,11 @@ class Marine(threading.Thread):
             self.tick(time_diff)
 
     def tick(self, time_diff):
-        if self.shootTime ==0 and self.recalculateTime == 0 and self.swapTeams == 0 and self.calculateGridTime == 0:
+        if self.shootTime ==0 and self.recalculateTime == 0 and self.swapTeams == 0:
             self.shootTime = time_diff
             self.recalculateTime = time_diff
             self.swapTeams = time_diff
+        if self.calculateGridTime == 0:
             self.calculateGridTime = time_diff
         self.commands = []
         oldme = self.me
@@ -108,10 +111,12 @@ class Marine(threading.Thread):
         return angle
 
     def hitGrid(self):
-        occGridPos, occGrid = self.commandCenter.get_occgrid(self.myIndex)
+        occGridPos, occGrid = self.commandCenter.bzrc.get_occgrid(self.myIndex)
         for i in xrange(self.constants["occgrid_width"]):
             for j in xrange(self.constants["occgrid_width"]):
-                self.commandCenter.grid.hitSquare(occGrid[i][j] == "1", occGridPos.x + j, occGridPos.y + i)
+                self.commandCenter.grid.hitSquare(occGrid[i][j] == "1", occGridPos.x + j + 400, occGridPos.y + i + 400)
+        self.commandCenter.gridPlotter.update_grid(self.commandCenter.grid.filterGrid)
+        # self.commandCenter.gridPlotter.draw_grid()
 
 class CommandCenter(object):
     """Class handles all command and control logic for a teams tanks."""
@@ -136,7 +141,11 @@ class CommandCenter(object):
         self.prev_time = 0
         self.lock = threading.Lock()
         self.mytanks,self.othertanks,self.flags,self.shots = self.bzrc.get_lots_o_stuff()
+        
         self.grid = Grid(self.constants["worldsize"])
+        self.gridPlotter = GridPlotter()
+        self.gridPlotter.init_window(-int(self.constants["worldsize"]), -int(self.constants["worldsize"]))
+
         print "Command Center Beginning Attack"
         print "Target firing on: " + str(mainTeam.color)
         print "Deploying " + str(min(self.foodSupply,len(self.mytanks))) + " marines"
@@ -335,13 +344,20 @@ class Grid:
 
     def __init__(self, worldsize):
         self.grid = []
+        self.filterGrid = array([])
         for i in xrange(-int(worldsize)):
             self.grid.append([])
+            self.filterGrid[j] = array([])
             for j in xrange(-int(worldsize)):
                 self.grid[j].append(OccupancySquare())
+                self.filterGrid[j][i] = "0"
 
     def hitSquare(self, isOccupied, x, y):
         self.grid[y][x].hitSquare(isOccupied)
+        if self.grid[y][x].probabilityOfOccupied > 0.8:
+            self.filterGrid[y][x] = "1"
+        else:
+            self.filterGrid[y][x] = "0"
 
 class OccupancySquare:
     """Class handles a single square in the occupancy grid"""
@@ -349,7 +365,7 @@ class OccupancySquare:
     def __init__(self):
         """Start with it having a probability of 0, then as hits happen,
             calculate the new probability"""
-        self.probabilityOfOccupied = 0
+        self.probabilityOfOccupied = 0.15
         self.occupiedHitCount = 0
         self.hits = 0
 

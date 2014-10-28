@@ -416,7 +416,7 @@ class Tank(object):
         self.vx = float(line[10])
         self.vy = float(line[11])
         self.angvel = float(line[12])
-        self.tangental = True
+        self.tangential = True
 
 class Base(object):
     def __init__(self,line):
@@ -465,7 +465,7 @@ class Flag(object):
         self.y = float(line[4])
         self.middle_x = self.x
         self.middle_y = self.y
-        self.tangental = False
+        self.tangential = False
         self.radius = 1
         self.size = 5
         self.weight = 100
@@ -481,7 +481,7 @@ class Other_Tank(object):
         self.middle_x = self.x
         self.middle_y = self.y
         self.angle = float(line[7])
-        self.tangental = True
+        self.tangential = True
         self.radius = 5
         self.size = 15
         self.weight = 50
@@ -494,7 +494,7 @@ class Shot(object):
         self.middle_y = self.y
         self.vx = float(line[3])
         self.vy = float(line[4])
-        self.tangental = True
+        self.tangential = True
         self.radius = 1
         self.size = 25
         self.weight = 100
