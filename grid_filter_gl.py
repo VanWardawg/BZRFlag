@@ -34,6 +34,7 @@ class GridFilter:
         glLoadIdentity()
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
+        self.draw_grid()
         #glutMainLoop()
 
 

@@ -111,9 +111,9 @@ class Marine(threading.Thread):
         return angle
 
     def hitGrid(self):
-        occGridPos, occGrid = self.commandCenter.bzrc.get_occgrid(self.myIndex)
-        for i in xrange(self.constants["occgrid_width"]):
-            for j in xrange(self.constants["occgrid_width"]):
+        occGridPos, occGrid = self.commandCenter.get_occgrid(self.myIndex)
+        for i in xrange(100):
+            for j in xrange(100):
                 self.commandCenter.grid.hitSquare(occGrid[i][j] == "1", occGridPos.x + j + 400, occGridPos.y + i + 400)
         self.commandCenter.gridPlotter.update_grid(self.commandCenter.grid.filterGrid)
         # self.commandCenter.gridPlotter.draw_grid()
@@ -143,8 +143,8 @@ class CommandCenter(object):
         self.mytanks,self.othertanks,self.flags,self.shots = self.bzrc.get_lots_o_stuff()
         
         self.grid = Grid(self.constants["worldsize"])
-        self.gridPlotter = GridPlotter()
-        self.gridPlotter.init_window(-int(self.constants["worldsize"]), -int(self.constants["worldsize"]))
+        self.gridPlotter = GridFilter()
+        self.gridPlotter.init_window(int(self.constants["worldsize"]), int(self.constants["worldsize"]))
 
         print "Command Center Beginning Attack"
         print "Target firing on: " + str(mainTeam.color)
@@ -153,6 +153,9 @@ class CommandCenter(object):
             marine = Marine(self.mytanks[i],i,self,self.constants,mainTeam)
             marine.start()
             self.army.append(marine)
+
+    def get_occgrid(self,index):
+        return self.use_bzrc('get_occgrid',index)
 
     def get_marine(self, index):
         return self.mytanks[index]
@@ -179,6 +182,8 @@ class CommandCenter(object):
                         results = self.bzrc.do_commands(commands)
                 except UnexpectedResponse:
                     print "error"
+            elif command == 'get_occgrid':
+                return self.bzrc.get_occgrid(commands)
         finally:
             self.lock.release()
 
