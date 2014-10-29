@@ -111,21 +111,22 @@ class Marine(threading.Thread):
         return angle
 
     def hitGrid(self):
+        if self.me.status == 'dead':
+            return
         occGridPos, occGrid = self.commandCenter.get_occgrid(self.myIndex)
-        for i in xrange(100):
-            for j in xrange(100):
-                self.commandCenter.grid.hitSquare(occGrid[i][j] == "1", occGridPos.x + j + 400, occGridPos.y + i + 400)
+        for i in range(0,len(occGrid)):
+            for j in range(0,len(occGrid[0])):
+                self.commandCenter.grid.hitSquare(occGrid[i][j] == 1, occGridPos[0] + i + 400,occGridPos[1] + j + 400)
         self.commandCenter.gridPlotter.update_grid(self.commandCenter.grid.filterGrid)
-        # self.commandCenter.gridPlotter.draw_grid()
+        self.commandCenter.gridPlotter.draw_grid()
 
 class CommandCenter(object):
     """Class handles all command and control logic for a teams tanks."""
 
-    def __init__(self, bzrc):
+    def __init__(self, bzrc,true,false):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         self.bases = self.bzrc.get_bases()
-        self.obstacles = self.bzrc.get_obstacles()
         self.teams = self.bzrc.get_teams()
         for ind,team in enumerate(self.teams):
             if team.color == self.constants["team"]:
@@ -136,15 +137,15 @@ class CommandCenter(object):
             mainTeam = randrange(0,len(self.teams))
 
         mainTeam = self.teams[mainTeam]
-        self.foodSupply = 10
+        self.foodSupply = 1
         self.army = []
         self.prev_time = 0
         self.lock = threading.Lock()
         self.mytanks,self.othertanks,self.flags,self.shots = self.bzrc.get_lots_o_stuff()
         
-        self.grid = Grid(self.constants["worldsize"])
+        self.grid = Grid(self.constants["worldsize"],true,false)
         self.gridPlotter = GridFilter()
-        self.gridPlotter.init_window(int(self.constants["worldsize"]), int(self.constants["worldsize"]))
+        self.gridPlotter.init_window(800, 800)
 
         print "Command Center Beginning Attack"
         print "Target firing on: " + str(mainTeam.color)
@@ -209,7 +210,6 @@ class SensorTower(object):
         self.constants = constants
         self.commandCenter = commandCenter
         self.bases = self.commandCenter.get_bases()
-        self.obstacles = self.commandCenter.get_obstacles()
         self.static_repulsive_field = []
         self.initialize_fields(choosenTeam)
         self.plotter = PotentialFieldPlotter()
@@ -219,8 +219,6 @@ class SensorTower(object):
             if base.color == self.constants["team"]:
                 base.weight = 1000
                 self.our_base = base
-        for obstacle in self.obstacles:
-            self.static_repulsive_field.append(obstacle)
 
         self.recalculate(team)
 
@@ -231,11 +229,11 @@ class SensorTower(object):
             if flag.color == choosenTeam:
                 flag.weight = 1000
                 self.enemy_flag= flag
-        for enemy in othertanks:
-            self.dynamic_repulsive_field.append(enemy)
+        # for enemy in othertanks:
+        #     self.dynamic_repulsive_field.append(enemy)
 
-        for shot in shots:
-            self.dynamic_repulsive_field.append(shot)
+        # for shot in shots:
+        #     self.dynamic_repulsive_field.append(shot)
 
     def calculate_potential_field_value(self, x, y, flag):
         sumDeltaX = 0
@@ -259,27 +257,27 @@ class SensorTower(object):
             sumDeltaX += deltaX
             sumDeltaY += deltaY
         #repulsive fields + tangential
-        repulsive_field = self.static_repulsive_field + self.dynamic_repulsive_field
-        for item in repulsive_field:
-            goalX = item.middle_x
-            goalY = item.middle_y
-            goalRadius = item.radius
-            goalSize = item.size
-            goalWeight = item.weight
-            distance = math.sqrt(math.pow((goalX - x),2) + math.pow((goalY - y),2))
-            angle = math.atan2(goalY-y, goalX-x)
-            if item.tangential == False:
-                deltaX,deltaY = self.negative_potential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
-            else:
-                deltaX,deltaY = self.negative_tangential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
-            sumDeltaX += deltaX
-            sumDeltaY += deltaY
-        #25% change to add a random field
-        if randrange(0,100) > 75:
-            randomX = randrange(0,100)
-            randomY = randrange(0,100)
-            sumDeltaY += randomY
-            sumDeltaX += randomX
+        # repulsive_field = self.static_repulsive_field + self.dynamic_repulsive_field
+        # for item in repulsive_field:
+        #     goalX = item.middle_x
+        #     goalY = item.middle_y
+        #     goalRadius = item.radius
+        #     goalSize = item.size
+        #     goalWeight = item.weight
+        #     distance = math.sqrt(math.pow((goalX - x),2) + math.pow((goalY - y),2))
+        #     angle = math.atan2(goalY-y, goalX-x)
+        #     if item.tangential == False:
+        #         deltaX,deltaY = self.negative_potential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
+        #     else:
+        #         deltaX,deltaY = self.negative_tangential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
+        #     sumDeltaX += deltaX
+        #     sumDeltaY += deltaY
+        # #25% change to add a random field
+        # if randrange(0,100) > 75:
+        #     randomX = randrange(0,100)
+        #     randomY = randrange(0,100)
+        #     sumDeltaY += randomY
+        #     sumDeltaX += randomX
         return sumDeltaX, sumDeltaY
 
     def calculate_full_potential_field(self):
@@ -347,44 +345,47 @@ class PotentialFieldValue(object):
 class Grid:
     """Class handles storing and manipulating the occupancy grid"""
 
-    def __init__(self, worldsize):
+    def __init__(self, worldsize,true,false):
         self.grid = []
-        self.filterGrid = array([])
-        for i in xrange(-int(worldsize)):
+        self.true = true
+        self.false = false
+        self.filterGrid = zeros((int(worldsize),int(worldsize)))
+        for i in range(0,int(worldsize)):
             self.grid.append([])
-            self.filterGrid[j] = array([])
-            for j in xrange(-int(worldsize)):
-                self.grid[j].append(OccupancySquare())
-                self.filterGrid[j][i] = "0"
+            for j in range(0,int(worldsize)):
+                self.grid[i].append(OccupancySquare(self.true,self.false))
 
     def hitSquare(self, isOccupied, x, y):
-        self.grid[y][x].hitSquare(isOccupied)
-        if self.grid[y][x].probabilityOfOccupied > 0.8:
-            self.filterGrid[y][x] = "1"
-        else:
-            self.filterGrid[y][x] = "0"
+        if len(self.grid) != 0:
+            #print str(x) + " " + str(y) + " " +str(isOccupied)
+            self.grid[x][y].hitSquare(isOccupied)
+            if self.grid[x][y].probabilityOfOccupied > .7:
+                self.filterGrid[x][y] =  1
+            else:
+                self.filterGrid[x][y] = 0
 
 class OccupancySquare:
     """Class handles a single square in the occupancy grid"""
 
-    def __init__(self):
+    def __init__(self,true,false):
+        self.true = true
+        self.false = false
+        self.truefalse = 1 - true
+        self.falsetrue = 1 - false
         """Start with it having a probability of 0, then as hits happen,
             calculate the new probability"""
         self.probabilityOfOccupied = 0.15
-        self.occupiedHitCount = 0
-        self.hits = 0
 
     def hitSquare(self, isOccupied):
-        self.hits += 1
-        """insert CORRECT math here for calculating the new probability"""
         if isOccupied:
-            self.occupiedHitCount += 1
-        self.probabilityOfOccupied = self.occupiedHitCount / self.hits
+            self.probabilityOfOccupied = (self.true * self.probabilityOfOccupied) / ((self.true * self.probabilityOfOccupied) + (self.truefalse * (1 - self.probabilityOfOccupied)))
+        else:
+            self.probabilityOfOccupied = (self.false * self.probabilityOfOccupied) / ((self.false * self.probabilityOfOccupied) + (self.falsetrue * (1 - self.probabilityOfOccupied)))
 
 def main():
     # Process CLI arguments.
     try:
-        execname, host, port = sys.argv
+        execname, host, port, true, false = sys.argv
     except ValueError:
         execname = sys.argv[0]
         print >>sys.stderr, '%s: incorrect number of arguments' % execname
@@ -395,7 +396,7 @@ def main():
     #bzrc = BZRC(host, int(port), debug=True)
     bzrc = BZRC(host, int(port))
 
-    cc = CommandCenter(bzrc)
+    cc = CommandCenter(bzrc, float(true), float(false))
 
     prev_time = time.time()
 
