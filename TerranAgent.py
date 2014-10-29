@@ -6,17 +6,16 @@ from random import randrange
 from fields import PotentialFieldPlotter
 from grid_filter_gl import GridFilter
 import threading
-from bzrc import BZRC, Command, UnexpectedResponse
+from bzrc import BZRC, Command, UnexpectedResponse, Location
 
 class Marine(threading.Thread):
-    def __init__(self,marine, index, commandCenter,constants, mainTeam):
+    def __init__(self,marine, index, commandCenter,constants):
         threading.Thread.__init__(self)
         self.me = marine
         self.myIndex = index
         self.commandCenter = commandCenter
         self.constants = constants
-        self.mainTeam = mainTeam
-        self.sensorTower = SensorTower(constants, commandCenter, mainTeam.color)
+        self.sensorTower = SensorTower(constants, commandCenter)
         self.commands = []
         self.swapTeams = 0
         self.shootTime = 0
@@ -27,6 +26,10 @@ class Marine(threading.Thread):
         self.calculateGridTime = 0
         self.new = True
         print "Marine " + str(index) + " ready to go!"
+
+    def move_next(self):
+        self.sensorTower.move_next()
+        print "Marine moving to new location"
 
     def run(self):
         prev_time = time.time()
@@ -39,16 +42,17 @@ class Marine(threading.Thread):
             self.shootTime = time_diff
             self.recalculateTime = time_diff
             self.swapTeams = time_diff
+
         if self.calculateGridTime == 0:
             self.calculateGridTime = time_diff
         self.commands = []
         oldme = self.me
         self.me = self.commandCenter.get_marine(self.myIndex)
-        if self.me.flag != '-' and self.new:
-            self.new = False
-            print "Marine " + str(self.myIndex) + " has acquired the " + str(self.me.flag) + " teams flag!"
-        elif self.me.flag == "-":
-            self.new = True
+
+        if time_diff - self.shootTime > 1:
+            self.shoot()
+            self.shootTime = time_diff
+
         if self.me.x == oldme.x and self.me.y == oldme.y:
             self.frozenTime+=1
         else:
@@ -58,25 +62,20 @@ class Marine(threading.Thread):
             self.frozenTime -=1
             command = Command(self.me.index, 1, math.radians(randrange(0,180)), False)
             self.commandCenter.do_commands([command])
-        if time_diff - self.shootTime > 1:
-            self.shoot()
-            self.shootTime = time_diff
+
         if time_diff - self.recalculateTime > .10:
-            self.sensorTower.recalculate(self.mainTeam.color)
+            self.sensorTower.recalculate()
             self.recalculateTime = time_diff
 
-        if time_diff - self.swapTeams > 1000:
-            teams = self.commandCenter.get_teams()
-            oldTeam = self.mainTeam
-            self.mainTeam = randrange(0,len(teams))
-            while self.mainTeam == self.commandCenter.get_team_index() and not oldTeam.color == teams[self.mainTeam].color:
-                self.mainTeam = randrange(0,len(teams))
-            self.mainTeam = teams[self.mainTeam]
+        if time_diff - self.swapTeams > 25:
             self.swapTeams = time_diff
-            print "Marine " + str(self.myindex) + " switching to target: " + str(self.mainTeam.color)
-        if time_diff - self.calculateGridTime > 5:
+            self.move_next()
+            self.sensorTower.recalculate()
+
+        if time_diff - self.calculateGridTime > .1:
             self.hitGrid()
             self.calculateGridTime = time_diff
+
         self.move_by_potential_field()
         results = self.commandCenter.do_commands(self.commands)
 
@@ -123,20 +122,11 @@ class Marine(threading.Thread):
 class CommandCenter(object):
     """Class handles all command and control logic for a teams tanks."""
 
-    def __init__(self, bzrc,true,false):
+    def __init__(self, bzrc,true,false, gridPlotter):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         self.bases = self.bzrc.get_bases()
-        self.teams = self.bzrc.get_teams()
-        for ind,team in enumerate(self.teams):
-            if team.color == self.constants["team"]:
-                self.index = ind
-                break
-        mainTeam = randrange(0,len(self.teams))
-        while mainTeam == self.index:
-            mainTeam = randrange(0,len(self.teams))
 
-        mainTeam = self.teams[mainTeam]
         self.foodSupply = 1
         self.army = []
         self.prev_time = 0
@@ -144,16 +134,16 @@ class CommandCenter(object):
         self.mytanks,self.othertanks,self.flags,self.shots = self.bzrc.get_lots_o_stuff()
         
         self.grid = Grid(self.constants["worldsize"],true,false)
-        self.gridPlotter = GridFilter()
-        self.gridPlotter.init_window(800, 800)
+        self.gridPlotter = gridPlotter
 
         print "Command Center Beginning Attack"
-        print "Target firing on: " + str(mainTeam.color)
+        print "Target firing on Location -350, -350"
         print "Deploying " + str(min(self.foodSupply,len(self.mytanks))) + " marines"
         for i in range(0,min(self.foodSupply,len(self.mytanks))):
-            marine = Marine(self.mytanks[i],i,self,self.constants,mainTeam)
+            marine = Marine(self.mytanks[i],i,self,self.constants)
             marine.start()
             self.army.append(marine)
+        self.prev_time1 = time.time()
 
     def get_occgrid(self,index):
         return self.use_bzrc('get_occgrid',index)
@@ -164,12 +154,13 @@ class CommandCenter(object):
     def get_teams(self):
         return self.teams
 
-    def tick(self, time_diff):
+    def tick(self):
         """Some time has passed; decide what to do next."""
+        self.time_diff = time.time() - self.prev_time1
         if self.prev_time == 0:
-            self.prev_time = time_diff
-        if time_diff - self.prev_time > .01:
-            self.prev_time = time_diff
+            self.prev_time = self.time_diff
+        if self.time_diff - self.prev_time > .01:
+            self.prev_time = self.time_diff
             self.mytanks,self.othertanks,self.flags,self.shots = self.use_bzrc('get_lots_o_stuff',None)
     
     def use_bzrc(self,command,commands):
@@ -206,45 +197,41 @@ class CommandCenter(object):
 
 class SensorTower(object):
     """Class handles all potential field logic for an agent"""
-    def __init__(self, constants, commandCenter, choosenTeam):
+    def __init__(self, constants, commandCenter):
         self.constants = constants
         self.commandCenter = commandCenter
         self.bases = self.commandCenter.get_bases()
         self.static_repulsive_field = []
-        self.initialize_fields(choosenTeam)
         self.plotter = PotentialFieldPlotter()
+        self.points = [(-350,-350),(-350,350),(350,350),(350,-350),(0,-350),(0,350),(0,0),(350,0),(-350,0),(-350,-350),(350,350),(-350,350),(350,-350)]
+        self.index = 1
+        self.initialize_fields()
 
-    def initialize_fields(self, team):
-        for base in self.bases:
-            if base.color == self.constants["team"]:
-                base.weight = 1000
-                self.our_base = base
+    def initialize_fields(self):
 
-        self.recalculate(team)
+        self.recalculate()
 
-    def recalculate(self, choosenTeam):
-        mytanks, othertanks, flags, shots = self.commandCenter.get_lots_o_stuff()
+    def move_next(self):
+        self.index+=1;
+        if(self.index == len(self.points)):
+            print "Completed"
+            self.index = 0
+
+    def recalculate(self):
         self.dynamic_repulsive_field = []
-        for flag in flags:
-            if flag.color == choosenTeam:
-                flag.weight = 1000
-                self.enemy_flag= flag
-        # for enemy in othertanks:
-        #     self.dynamic_repulsive_field.append(enemy)
+        self.enemy_flag = Location()
+        self.enemy_flag.middle_x = self.points[self.index][0]
+        self.enemy_flag.middle_y = self.points[self.index][1]
+        self.enemy_flag.radius = 1
+        self.enemy_flag.size = 10
+        self.enemy_flag.weight = 1000
 
-        # for shot in shots:
-        #     self.dynamic_repulsive_field.append(shot)
 
     def calculate_potential_field_value(self, x, y, flag):
         sumDeltaX = 0
         sumDeltaY = 0
         attractive_field = []
-        if flag == True:
-            attractive_field.append(self.our_base)
-        else:
-            attractive_field.append(self.enemy_flag)
-
-        #attractive field
+        attractive_field.append(self.enemy_flag)
         for item in attractive_field:
             goalX = item.middle_x
             goalY = item.middle_y
@@ -256,28 +243,6 @@ class SensorTower(object):
             deltaX,deltaY = self.positive_potential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
             sumDeltaX += deltaX
             sumDeltaY += deltaY
-        #repulsive fields + tangential
-        # repulsive_field = self.static_repulsive_field + self.dynamic_repulsive_field
-        # for item in repulsive_field:
-        #     goalX = item.middle_x
-        #     goalY = item.middle_y
-        #     goalRadius = item.radius
-        #     goalSize = item.size
-        #     goalWeight = item.weight
-        #     distance = math.sqrt(math.pow((goalX - x),2) + math.pow((goalY - y),2))
-        #     angle = math.atan2(goalY-y, goalX-x)
-        #     if item.tangential == False:
-        #         deltaX,deltaY = self.negative_potential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
-        #     else:
-        #         deltaX,deltaY = self.negative_tangential_field_values(distance,goalRadius, angle, goalSize, goalWeight)
-        #     sumDeltaX += deltaX
-        #     sumDeltaY += deltaY
-        # #25% change to add a random field
-        # if randrange(0,100) > 75:
-        #     randomX = randrange(0,100)
-        #     randomY = randrange(0,100)
-        #     sumDeltaY += randomY
-        #     sumDeltaX += randomX
         return sumDeltaX, sumDeltaY
 
     def calculate_full_potential_field(self):
@@ -350,19 +315,23 @@ class Grid:
         self.true = true
         self.false = false
         self.filterGrid = zeros((int(worldsize),int(worldsize)))
+
+        self.filterGrid.fill(.15)
         for i in range(0,int(worldsize)):
             self.grid.append([])
             for j in range(0,int(worldsize)):
                 self.grid[i].append(OccupancySquare(self.true,self.false))
+        print self.grid[0][0].true,self.grid[0][0].truefalse,self.grid[0][0].false,self.grid[0][0].falsetrue
 
     def hitSquare(self, isOccupied, x, y):
         if len(self.grid) != 0:
             #print str(x) + " " + str(y) + " " +str(isOccupied)
-            self.grid[x][y].hitSquare(isOccupied)
-            if self.grid[x][y].probabilityOfOccupied > .7:
-                self.filterGrid[x][y] =  1
-            else:
-                self.filterGrid[x][y] = 0
+            self.grid[y][x].hitSquare(isOccupied)
+            self.filterGrid[y][x] = self.grid[y][x].probabilityOfOccupied
+            # if self.grid[y][x].probabilityOfOccupied > .7:
+            #     self.filterGrid[y][x] =  1
+            # else:
+            #     self.filterGrid[y][x] = 0
 
 class OccupancySquare:
     """Class handles a single square in the occupancy grid"""
@@ -380,7 +349,7 @@ class OccupancySquare:
         if isOccupied:
             self.probabilityOfOccupied = (self.true * self.probabilityOfOccupied) / ((self.true * self.probabilityOfOccupied) + (self.truefalse * (1 - self.probabilityOfOccupied)))
         else:
-            self.probabilityOfOccupied = (self.false * self.probabilityOfOccupied) / ((self.false * self.probabilityOfOccupied) + (self.falsetrue * (1 - self.probabilityOfOccupied)))
+            self.probabilityOfOccupied = (self.truefalse * self.probabilityOfOccupied) / ((self.truefalse * self.probabilityOfOccupied) + (self.false * (1 - self.probabilityOfOccupied)))
 
 def main():
     # Process CLI arguments.
@@ -396,7 +365,9 @@ def main():
     #bzrc = BZRC(host, int(port), debug=True)
     bzrc = BZRC(host, int(port))
 
-    cc = CommandCenter(bzrc, float(true), float(false))
+    gridPlotter = GridFilter()
+    cc = CommandCenter(bzrc, float(true), float(false),gridPlotter)
+    gridPlotter.init_window(800, 800,cc.tick)
 
     prev_time = time.time()
 
@@ -410,6 +381,7 @@ def main():
     except KeyboardInterrupt:
         print "Exiting due to keyboard interrupt."
         bzrc.close()
+
 
 
 if __name__ == '__main__':

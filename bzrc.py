@@ -470,6 +470,17 @@ class Flag(object):
         self.size = 5
         self.weight = 100
 
+class Location(object):
+    def __init__(self):
+        self.x = 0
+        self.y = 0
+        self.middle_x = self.x
+        self.middle_y = self.y
+        self.tangential = False
+        self.radius = 1
+        self.size = 5
+        self.weight = 100
+
 class Other_Tank(object):
     def __init__(self,line):
         self.callsign = line[1]
