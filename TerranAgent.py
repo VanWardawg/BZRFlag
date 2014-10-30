@@ -9,13 +9,13 @@ import threading
 from bzrc import BZRC, Command, UnexpectedResponse, Location
 
 class Marine(threading.Thread):
-    def __init__(self,marine, index, commandCenter,constants):
+    def __init__(self,marine, index, commandCenter,constants, count):
         threading.Thread.__init__(self)
         self.me = marine
         self.myIndex = index
         self.commandCenter = commandCenter
         self.constants = constants
-        self.sensorTower = SensorTower(constants, commandCenter)
+        self.sensorTower = SensorTower(constants, commandCenter,self.myIndex,count)
         self.commands = []
         self.swapTeams = 0
         self.shootTime = 0
@@ -49,9 +49,9 @@ class Marine(threading.Thread):
         oldme = self.me
         self.me = self.commandCenter.get_marine(self.myIndex)
 
-        if time_diff - self.shootTime > 1:
-            self.shoot()
-            self.shootTime = time_diff
+        # if time_diff - self.shootTime > 1:
+        #     self.shoot()
+        #     self.shootTime = time_diff
 
         if self.me.x == oldme.x and self.me.y == oldme.y:
             self.frozenTime+=1
@@ -67,7 +67,7 @@ class Marine(threading.Thread):
             self.sensorTower.recalculate()
             self.recalculateTime = time_diff
 
-        if time_diff - self.swapTeams > 25:
+        if time_diff - self.swapTeams > 35:
             self.swapTeams = time_diff
             self.move_next()
             self.sensorTower.recalculate()
@@ -122,25 +122,25 @@ class Marine(threading.Thread):
 class CommandCenter(object):
     """Class handles all command and control logic for a teams tanks."""
 
-    def __init__(self, bzrc,true,false, gridPlotter):
+    def __init__(self, bzrc, foodSupply, gridPlotter):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         self.bases = self.bzrc.get_bases()
 
-        self.foodSupply = 1
+        self.foodSupply = int(foodSupply)
         self.army = []
         self.prev_time = 0
         self.lock = threading.Lock()
         self.mytanks,self.othertanks,self.flags,self.shots = self.bzrc.get_lots_o_stuff()
         
-        self.grid = Grid(self.constants["worldsize"],true,false)
+        self.grid = Grid(self.constants["worldsize"],float(self.constants['truepositive']),float(self.constants['truenegative']))
         self.gridPlotter = gridPlotter
 
         print "Command Center Beginning Attack"
         print "Target firing on Location -350, -350"
         print "Deploying " + str(min(self.foodSupply,len(self.mytanks))) + " marines"
         for i in range(0,min(self.foodSupply,len(self.mytanks))):
-            marine = Marine(self.mytanks[i],i,self,self.constants)
+            marine = Marine(self.mytanks[i],i,self,self.constants,self.foodSupply)
             marine.start()
             self.army.append(marine)
         self.prev_time1 = time.time()
@@ -197,33 +197,82 @@ class CommandCenter(object):
 
 class SensorTower(object):
     """Class handles all potential field logic for an agent"""
-    def __init__(self, constants, commandCenter):
+    def __init__(self, constants, commandCenter,index,count):
         self.constants = constants
         self.commandCenter = commandCenter
         self.bases = self.commandCenter.get_bases()
         self.static_repulsive_field = []
         self.plotter = PotentialFieldPlotter()
         self.points = [(-350,-350),(-350,350),(350,350),(350,-350),(0,-350),(0,350),(0,0),(350,0),(-350,0),(-350,-350),(350,350),(-350,350),(350,-350)]
-        self.index = 1
+        self.index = randrange(0,len(self.points)-1)
+        self.location = [-350,-350]
+        self.move = 50
+        self.count = count
+        self.m_index = index
+        self.gather = True
+        self.moveHorizontal = True
+        self.moveVertical = True
+        self.tick = 1
         self.initialize_fields()
 
     def initialize_fields(self):
-
         self.recalculate()
 
     def move_next(self):
-        self.index+=1;
-        if(self.index == len(self.points)):
-            print "Completed"
-            self.index = 0
+        if self.gather and self.moveHorizontal:
+            self.location[1] = self.location[1] + self.move * self.m_index
+            self.gather = False
+        elif self.moveHorizontal:
+            tempLoc = self.location
+            if self.tick % 2 != 0:
+                if self.location[0] < 0:
+                    tempLoc[0] = self.location[0] + 700
+                else:
+                    tempLoc[0] = self.location[0] - 700
+            else:
+                tempLoc[1] = self.location[1] + self.move*(self.count)/2
+            if abs(tempLoc[0]) > 400 or abs(tempLoc[1]) > 400:
+                self.location = [350,350]
+                self.moveHorizontal = False
+                self.gather = True
+                self.tick = 1
+            else:
+                self.location = tempLoc
+                self.tick+=1
+        elif self.gather and self.moveVertical:
+            self.location[0] = self.location[0] - self.move * self.m_index
+            self.gather = False
+        elif self.moveVertical:
+            tempLoc = self.location
+            if self.tick % 2 != 0:
+                if self.location[1] < 0:
+                    tempLoc[1] = self.location[1] + 700
+                else:
+                    tempLoc[1] = self.location[1] - 700
+            else:
+                tempLoc[0] = self.location[0] + self.move*(self.count)/2
+            if abs(tempLoc[0]) > 400 or abs(tempLoc[1]) > 400:
+                self.location = [-350,-350]
+                self.gather = True
+                self.moveHorizontal = True
+                self.moveVertical = True
+                self.tick = 1
+            else:
+                self.location = tempLoc
+            self.tick+=1
+        print "Marine Patrolling to location " + str(self.location[0]) + " " + str(self.location[1])
+        # self.index+=1;
+        # if(self.index == len(self.points)):
+        #     print "Completed"
+        #     self.index = 0
 
     def recalculate(self):
         self.dynamic_repulsive_field = []
         self.enemy_flag = Location()
-        self.enemy_flag.middle_x = self.points[self.index][0]
-        self.enemy_flag.middle_y = self.points[self.index][1]
-        self.enemy_flag.radius = 1
-        self.enemy_flag.size = 10
+        self.enemy_flag.middle_x = self.location[0]
+        self.enemy_flag.middle_y = self.location[1]
+        self.enemy_flag.radius = 25
+        self.enemy_flag.size = 50
         self.enemy_flag.weight = 1000
 
 
@@ -315,7 +364,7 @@ class Grid:
         self.true = true
         self.false = false
         self.filterGrid = zeros((int(worldsize),int(worldsize)))
-
+        self.print_times = 1
         self.filterGrid.fill(.15)
         for i in range(0,int(worldsize)):
             self.grid.append([])
@@ -328,6 +377,9 @@ class Grid:
             #print str(x) + " " + str(y) + " " +str(isOccupied)
             self.grid[y][x].hitSquare(isOccupied)
             self.filterGrid[y][x] = self.grid[y][x].probabilityOfOccupied
+            if self.print_times % 1000000 == 1:
+                print self.filterGrid[y][x], x, y
+            self.print_times+=1
             # if self.grid[y][x].probabilityOfOccupied > .7:
             #     self.filterGrid[y][x] =  1
             # else:
@@ -354,7 +406,7 @@ class OccupancySquare:
 def main():
     # Process CLI arguments.
     try:
-        execname, host, port, true, false = sys.argv
+        execname, host, port, foodSupply = sys.argv
     except ValueError:
         execname = sys.argv[0]
         print >>sys.stderr, '%s: incorrect number of arguments' % execname
@@ -366,7 +418,7 @@ def main():
     bzrc = BZRC(host, int(port))
 
     gridPlotter = GridFilter()
-    cc = CommandCenter(bzrc, float(true), float(false),gridPlotter)
+    cc = CommandCenter(bzrc, foodSupply,gridPlotter)
     gridPlotter.init_window(800, 800,cc.tick)
 
     prev_time = time.time()
