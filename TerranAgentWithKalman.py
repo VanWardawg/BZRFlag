@@ -403,10 +403,88 @@ class OccupancySquare:
         else:
             self.probabilityOfOccupied = (self.truefalse * self.probabilityOfOccupied) / ((self.truefalse * self.probabilityOfOccupied) + (self.false * (1 - self.probabilityOfOccupied)))
 
+
+# this filter is a per tank thing, when we get the enemy tanks match their filter
+# by index in a dictionary?
+# deltaT is the time we are letting pass between calculations
+# noise is a parameter we pass in from command line (sever default is 5)
+# startX and startY is the original position of the tanks flag
+class KalmanFilter(object):
+    def __init__(self,deltaT,noise,startX,startY):
+        self.deltaT = deltaT;
+        self.Et = numpy.matrix([100,0,0,0,0,0],
+            [0,.1,0,0,0,0],
+            [0,0,.1,0,0,0],
+            [0,0,0,100,0,0],
+            [0,0,0,0,.1,0],
+            [0,0,0,0,0,.1]);
+        #choose 2 because 100 seemed like too large
+        self.Ex = numpy.matrix([.1,0,0,0,0,0],
+            [0,.1,0,0,0,0],
+            [0,0,2,0,0,0],
+            [0,0,0,.1,0,0],
+            [0,0,0,0,.1,0],
+            [0,0,0,0,0,2])
+        self.Ez = numpy.matrix([pow(noise,2),0],[0,pow(noise,2)])
+        self.F = numpy.matrix([1,deltaT,pow(deltaT,2)/2,0,0,0],
+            [0,1,deltaT,0,0,0],
+            [0,0,1,0,0,0],
+            [0,0,0,1,deltaT,pow(deltaT,2)/2],
+            [0,0,0,0,1,deltaT],
+            [0,0,0,0,0,1]);
+        self.H = numpy.matrix([1,0,0,0,0,0],[0,0,0,1,0,0])
+        self.Ut = np.matrix([startX,0,0,startY,0,0])
+        self.reset = time.time()
+
+    # this is called at each time step deltaT to recalculate locations based
+    # on observed position x and y
+    # because of mentioned error Et is reset every 10 seconds
+    def calc_location(self,tankId, x, y):
+        if self.reset - time.time() > 10000:
+            self.reset = time.time()
+            self.Et = numpy.matrix([100,0,0,0,0,0],
+            [0,.1,0,0,0,0],
+            [0,0,.1,0,0,0],
+            [0,0,0,100,0,0],
+            [0,0,0,0,.1,0],
+            [0,0,0,0,0,.1]); 
+        Zt = np.matrix([x,y]);
+        FT = np.transpose(F);
+        Ex = self.Ex;
+        HT = np.transpose(H);
+        Et = self.Et;
+        Ez = self.Ez;
+        H = self.H;
+        F = self.F;
+        Ut = self.Ut;
+        I = np.matrix([1,0,0,0,0,0],
+            [0,1,0,0,0,0],
+            [0,0,1,0,0,0],
+            [0,0,0,1,0,0],
+            [0,0,0,0,1,0],
+            [0,0,0,0,0,1])
+        Kt = ((F*Et)*FT + Ex)*HT*np.linalg.inv((H*(F*Et*FT + Ex)*HT + Ez));
+        self.Ut = F*Ut + Kt*(Zt - H*F*Ut);
+        self.Et = (I - Kt*H)*(F*Et*FT + Ex);
+
+    # this is used to predict the location of a tank a given time in the future
+    def predict_location(self,time):
+        F = numpy.matrix([1,time,pow(time,2)/2,0,0,0],
+            [0,1,time,0,0,0],
+            [0,0,1,0,0,0],
+            [0,0,0,1,time,pow(time,2)/2],
+            [0,0,0,0,1,time],
+            [0,0,0,0,0,1]);
+        return self.H*(F*self.Ut);
+
+
+
+
 def main():
     # Process CLI arguments.
     try:
-        execname, host, port, foodSupply = sys.argv
+        #noise needs to be passed into the necessary functions
+        execname, host, port, foodSupply, noise = sys.argv
     except ValueError:
         execname = sys.argv[0]
         print >>sys.stderr, '%s: incorrect number of arguments' % execname
