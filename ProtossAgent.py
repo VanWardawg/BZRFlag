@@ -3,7 +3,7 @@ import math
 import time
 from numpy import *
 from random import randrange
-from fields import PotentialFieldPlotter
+from grid_filter_gl import GridFilter
 import threading
 from bzrc import BZRC, Command, UnexpectedResponse, Location
 
@@ -62,8 +62,12 @@ class Zealot(threading.Thread):
             self.enemiesFilters[index] = KalmanFilter(self.deltaT,self.noise,enemyFlag.x,enemyFlag.y)
         self.enemiesFilters[index].calc_location(enemy.x,enemy.y);
         self.printTime +=1
+        enemyLoc = self.enemiesFilters[index].H*self.enemiesFilters[index].Ut;
         if self.printTime %10 == 0:
-            print "Enemy " + str(index) + " at: " + str(self.enemiesFilters[index].H*self.enemiesFilters[index].Ut);
+            print "Enemy " + str(index) + " at: " + str(enemyLoc);
+        self.nexus.grid.hitSquare(int(enemyLoc[0][0])+400,int(enemyLoc[1])+400);
+        self.nexus.gridPlotter.update_grid(self.nexus.grid.filterGrid)
+        self.nexus.gridPlotter.draw_grid()
 
     def shoot(self):
         command = Command(self.me.index, 0, 0,True)
@@ -81,11 +85,12 @@ class Zealot(threading.Thread):
 class Nexus(object):
     """Class handles all command and control logic for a teams tanks."""
 
-    def __init__(self, bzrc, psi, noise):
+    def __init__(self, bzrc, psi, noise,gridPlotter):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         self.bases = self.bzrc.get_bases()
-
+        self.grid = Grid(self.constants["worldsize"])
+        self.gridPlotter = gridPlotter;
         self.psi = psi
         self.army = []
         self.prev_time = 0
@@ -118,7 +123,7 @@ class Nexus(object):
     def get_teams(self):
         return self.teams
 
-    def tick(self,prev_time):
+    def tick(self):
         """Some time has passed; decide what to do next."""
         self.time_diff = time.time() - self.prev_time1
         if self.prev_time == 0:
@@ -138,8 +143,8 @@ class Nexus(object):
                         results = self.bzrc.do_commands(commands)
                 except UnexpectedResponse:
                     print "error"
-            elif command == 'get_occgrid':
-                return self.bzrc.get_occgrid(commands)
+            elif command == 'get_onexusgrid':
+                return self.bzrc.get_onexusgrid(commands)
         finally:
             self.lock.release()
 
@@ -158,6 +163,24 @@ class Nexus(object):
 
     def get_lots_o_stuff(self):
         return self.mytanks,self.othertanks,self.flags, self.shots
+
+class Grid:
+    """Class handles storing and manipulating the occupancy grid"""
+
+    def __init__(self, worldsize):
+        self.filterGrid = zeros((int(worldsize),int(worldsize)))
+        self.filterGrid.fill(.15)
+
+    def hitSquare(self, x, y):
+        if x > 800:
+            x = 800;
+        if y > 800:
+            y = 800;
+        if x < 0:
+            x = 0;
+        if y < 0:
+            y = 0;
+        self.filterGrid[y][x] = 1;
 
 # this filter is a per tank thing, when we get the enemy tanks match their filter
 # by index in a dictionary?
@@ -251,8 +274,10 @@ def main():
 
     # Connect.
     #bzrc = BZRC(host, int(port), debug=True)
+    gridPlotter = GridFilter()
     bzrc = BZRC(host, int(port))
-    cc = Nexus(bzrc, int(psi), int(noise))
+    nexus = Nexus(bzrc, int(psi), int(noise),gridPlotter)
+    gridPlotter.init_window(800, 800,nexus.tick)
 
     prev_time = time.time()
 
@@ -260,7 +285,7 @@ def main():
     try:
         while True:
             time_diff = time.time() - prev_time
-            action = threading.Thread(target =cc.tick, args=[time_diff])
+            action = threading.Thread(target =nexus.tick, args=[time_diff])
             action.start()
             action.join()
     except KeyboardInterrupt:
