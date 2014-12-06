@@ -30,12 +30,13 @@ from bzrc import BZRC, Command
 class Agent(object):
     """Class handles all command and control logic for a teams tanks."""
 
-    def __init__(self, bzrc):
+    def __init__(self, bzrc,type):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         self.commands = []
         self.moveTime = randrange(3,8)
         self.time = 0
+        self.type = type
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
@@ -49,12 +50,13 @@ class Agent(object):
         self.enemies = [tank for tank in othertanks if tank.color !=
                         self.constants['team']]
         self.commands = []
+        if self.type == 'Duck': #The first tank is a "sitting duck" and doesn't move
+            return
         for tank in mytanks:
-            if tank.index == 0:  #The first tank is a "sitting duck" and doesn't move
-                return
             if self.moveTime > 0:
                 self.move_forward(tank)
                 self.angleTime = 0
+            print tank.x,tank.y
 
         if self.moveTime < 0 and (time_diff - self.angleTime > 2):
             self.moveTime = randrange(3,8)
@@ -90,7 +92,7 @@ class Agent(object):
 def main():
     # Process CLI arguments.
     try:
-        execname, host, port = sys.argv
+        execname, host, port, pidgeonType = sys.argv
     except ValueError:
         execname = sys.argv[0]
         print >>sys.stderr, '%s: incorrect number of arguments' % execname
@@ -101,7 +103,7 @@ def main():
     #bzrc = BZRC(host, int(port), debug=True)
     bzrc = BZRC(host, int(port))
 
-    agent = Agent(bzrc)
+    agent = Agent(bzrc,pidgeonType)
 
     prev_time = time.time()
 

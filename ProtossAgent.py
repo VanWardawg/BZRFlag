@@ -21,6 +21,7 @@ class Zealot(threading.Thread):
         self.enemiesFilters = {};
         self.noise = noise;
         self.deltaT = .5;
+        self.printTime = 0;
         print "Zealot " + str(index) + " ready to go!"
 
     def run(self):
@@ -60,7 +61,9 @@ class Zealot(threading.Thread):
             enemyFlag = self.nexus.get_enemy_flag(enemy.color);
             self.enemiesFilters[index] = KalmanFilter(self.deltaT,self.noise,enemyFlag.x,enemyFlag.y)
         self.enemiesFilters[index].calc_location(enemy.x,enemy.y);
-        # print "Enemy " + str(index) + " at: " + str(self.enemiesFilters[index].Ut);
+        self.printTime +=1
+        if self.printTime %10 == 0:
+            print "Enemy " + str(index) + " at: " + str(self.enemiesFilters[index].H*self.enemiesFilters[index].Ut);
 
     def shoot(self):
         command = Command(self.me.index, 0, 0,True)
