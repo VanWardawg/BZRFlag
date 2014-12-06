@@ -60,7 +60,7 @@ class Zealot(threading.Thread):
             enemyFlag = self.nexus.get_enemy_flag(enemy.color);
             self.enemiesFilters[index] = KalmanFilter(self.deltaT,self.noise,enemyFlag.x,enemyFlag.y)
         self.enemiesFilters[index].calc_location(enemy.x,enemy.y);
-        print "Enemy " + str(index) + " at: " + str(self.enemiesFilters[index].Ut);
+        # print "Enemy " + str(index) + " at: " + str(self.enemiesFilters[index].Ut);
 
     def shoot(self):
         command = Command(self.me.index, 0, 0,True)
@@ -208,7 +208,7 @@ class KalmanFilter(object):
             [0,0,0,y,0,0],
             [0,0,0,0,.1,0],
             [0,0,0,0,0,.1]]); 
-            print "Resetting"
+            # print "Resetting"
         Zt = transpose(matrix([x,y]));
         FT = self.FT;
         Ex = self.Ex;
