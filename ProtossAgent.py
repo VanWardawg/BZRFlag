@@ -4,21 +4,23 @@ import time
 from numpy import *
 from random import randrange
 from fields import PotentialFieldPlotter
-from grid_filter_gl import GridFilter
 import threading
 from bzrc import BZRC, Command, UnexpectedResponse, Location
 
 class Zealot(threading.Thread):
-    def __init__(self,zealot, index, commandCenter,constants, count):
+    def __init__(self,zealot, index, nexus,constants, count, noise):
         threading.Thread.__init__(self)
         self.me = zealot
         self.myIndex = index
-        self.commandCenter = commandCenter
+        self.nexus = nexus
         self.constants = constants
         self.commands = []
         self.shootTime = 0
         self.calculateEnemyLocation = 0
         self.new = True
+        self.enemiesFilters = {};
+        self.noise = noise;
+        self.deltaT = .5;
         print "Zealot " + str(index) + " ready to go!"
 
     def run(self):
@@ -35,24 +37,30 @@ class Zealot(threading.Thread):
             self.calculateEnemyLocation = time_diff
 
         self.commands = []
-        self.me = self.commandCenter.get_zealot(self.myIndex)
+        self.me = self.nexus.get_zealot(self.myIndex)
 
         if time_diff - self.shootTime > 1:
             #see if enemy is within range, then predict location for a given time when 
             #trajetories would match
+            # dist = math.sqrt(math.pow((enemyTank.x - self.me.x),2) + math.pow((enemyTank.y - self.me.y),2));
             self.shoot()
             self.shootTime = time_diff
 
-        if time_diff - self.calculateEnemyLocation > 500:
+        if time_diff - self.calculateEnemyLocation > (self.deltaT):
             #every deltaT time (.5 seconds) calculate the new location of enemies
-            #within a given range
-            self.calc_enemy_location()
+            enemyTanks = self.nexus.get_enemies();
+            for i in range(0,len(enemyTanks)):
+                self.calc_enemy_location(i,enemyTanks[i])
             self.calculateEnemyLocation = time_diff
 
-        results = self.commandCenter.do_commands(self.commands)
+        results = self.nexus.do_commands(self.commands)
 
-    def calc_enemy_location(self):
-        self.enemiesFilters = {};
+    def calc_enemy_location(self,index,enemy):
+        if not index in self.enemiesFilters.keys():
+            enemyFlag = self.nexus.get_enemy_flag(enemy.color);
+            self.enemiesFilters[index] = KalmanFilter(self.deltaT,self.noise,enemyFlag.x,enemyFlag.y)
+        self.enemiesFilters[index].calc_location(enemy.x,enemy.y);
+        print "Enemy " + str(index) + " at: " + str(self.enemiesFilters[index].Ut);
 
     def shoot(self):
         command = Command(self.me.index, 0, 0,True)
@@ -70,12 +78,12 @@ class Zealot(threading.Thread):
 class Nexus(object):
     """Class handles all command and control logic for a teams tanks."""
 
-    def __init__(self, bzrc, psi):
+    def __init__(self, bzrc, psi, noise):
         self.bzrc = bzrc
         self.constants = self.bzrc.get_constants()
         self.bases = self.bzrc.get_bases()
 
-        self.psi = int(psi)
+        self.psi = psi
         self.army = []
         self.prev_time = 0
         self.lock = threading.Lock()
@@ -85,10 +93,18 @@ class Nexus(object):
         print "Target firing on Location -350, -350"
         print "Deploying " + str(min(self.psi,len(self.mytanks))) + " zealots"
         for i in range(0,min(self.psi,len(self.mytanks))):
-            zealot = Zealot(self.mytanks[i],i,self,self.constants,self.psi)
+            zealot = Zealot(self.mytanks[i],i,self,self.constants,self.psi,noise)
             zealot.start()
             self.army.append(zealot)
         self.prev_time1 = time.time()
+
+    def get_enemies(self):
+        return self.othertanks;
+
+    def get_enemy_flag(self,color):
+        for flag in self.flags:
+            if flag.color == color:
+                return flag;
 
     def get_occgrid(self,index):
         return self.use_bzrc('get_occgrid',index)
@@ -99,7 +115,7 @@ class Nexus(object):
     def get_teams(self):
         return self.teams
 
-    def tick(self):
+    def tick(self,prev_time):
         """Some time has passed; decide what to do next."""
         self.time_diff = time.time() - self.prev_time1
         if self.prev_time == 0:
@@ -148,69 +164,74 @@ class Nexus(object):
 class KalmanFilter(object):
     def __init__(self,deltaT,noise,startX,startY):
         self.deltaT = deltaT;
-        self.Et = numpy.matrix([100,0,0,0,0,0],
+        self.Et = matrix([[100,0,0,0,0,0],
             [0,.1,0,0,0,0],
             [0,0,.1,0,0,0],
             [0,0,0,100,0,0],
             [0,0,0,0,.1,0],
-            [0,0,0,0,0,.1]);
+            [0,0,0,0,0,.1]]);
         #choose 2 because 100 seemed like too large
-        self.Ex = numpy.matrix([.1,0,0,0,0,0],
+        self.Ex = matrix([[.1,0,0,0,0,0],
             [0,.1,0,0,0,0],
             [0,0,2,0,0,0],
             [0,0,0,.1,0,0],
             [0,0,0,0,.1,0],
-            [0,0,0,0,0,2])
-        self.Ez = numpy.matrix([pow(noise,2),0],[0,pow(noise,2)])
-        self.F = numpy.matrix([1,deltaT,pow(deltaT,2)/2,0,0,0],
+            [0,0,0,0,0,2]])
+        self.Ez = matrix([[pow(noise,2),0],[0,pow(noise,2)]])
+        self.F = matrix([[1,deltaT,pow(deltaT,2)/2,0,0,0],
             [0,1,deltaT,0,0,0],
             [0,0,1,0,0,0],
             [0,0,0,1,deltaT,pow(deltaT,2)/2],
             [0,0,0,0,1,deltaT],
-            [0,0,0,0,0,1]);
-        self.H = numpy.matrix([1,0,0,0,0,0],[0,0,0,1,0,0])
-        self.Ut = np.matrix([startX,0,0,startY,0,0])
+            [0,0,0,0,0,1]]);
+        self.H = matrix([[1,0,0,0,0,0],[0,0,0,1,0,0]])
+        self.Ut = transpose(matrix([startX,0,0,startY,0,0]))
+        self.I = matrix([[1,0,0,0,0,0],
+            [0,1,0,0,0,0],
+            [0,0,1,0,0,0],
+            [0,0,0,1,0,0],
+            [0,0,0,0,1,0],
+            [0,0,0,0,0,1]]);
         self.reset = time.time()
+        self.HT = transpose(self.H);
+        self.FT = transpose(self.F);
 
     # this is called at each time step deltaT to recalculate locations based
     # on observed position x and y
     # because of mentioned error Et is reset every 10 seconds
-    def calc_location(self,tankId, x, y):
-        if self.reset - time.time() > 10000:
+    def calc_location(self, x, y):
+        if self.reset - time.time() > 1000:
             self.reset = time.time()
-            self.Et = numpy.matrix([x,0,0,0,0,0],
+            self.Et = numpy.matrix([[x,0,0,0,0,0],
             [0,.1,0,0,0,0],
             [0,0,.1,0,0,0],
             [0,0,0,y,0,0],
             [0,0,0,0,.1,0],
-            [0,0,0,0,0,.1]); 
-        Zt = np.matrix([x,y]);
-        FT = np.transpose(F);
+            [0,0,0,0,0,.1]]); 
+            print "Resetting"
+        Zt = transpose(matrix([x,y]));
+        FT = self.FT;
         Ex = self.Ex;
-        HT = np.transpose(H);
+        HT = self.HT;
         Et = self.Et;
         Ez = self.Ez;
         H = self.H;
         F = self.F;
         Ut = self.Ut;
-        I = np.matrix([1,0,0,0,0,0],
-            [0,1,0,0,0,0],
-            [0,0,1,0,0,0],
-            [0,0,0,1,0,0],
-            [0,0,0,0,1,0],
-            [0,0,0,0,0,1])
-        Kt = ((F*Et)*FT + Ex)*HT*np.linalg.inv((H*(F*Et*FT + Ex)*HT + Ez));
+        I = self.I;
+        Extra = ((F*Et)*FT + Ex);
+        Kt = Extra*HT*linalg.inv((H*Extra*HT + Ez));
         self.Ut = F*Ut + Kt*(Zt - H*F*Ut);
-        self.Et = (I - Kt*H)*(F*Et*FT + Ex);
+        self.Et = (I - Kt*H)*Extra;
 
     # this is used to predict the location of a tank a given time in the future
     def predict_location(self,time):
-        F = numpy.matrix([1,time,pow(time,2)/2,0,0,0],
+        F = numpy.matrix([[1,time,pow(time,2)/2,0,0,0],
             [0,1,time,0,0,0],
             [0,0,1,0,0,0],
             [0,0,0,1,time,pow(time,2)/2],
             [0,0,0,0,1,time],
-            [0,0,0,0,0,1]);
+            [0,0,0,0,0,1]]);
         return self.H*(F*self.Ut);
 
 
@@ -228,7 +249,7 @@ def main():
     # Connect.
     #bzrc = BZRC(host, int(port), debug=True)
     bzrc = BZRC(host, int(port))
-    cc = Nexus(bzrc, psi)
+    cc = Nexus(bzrc, int(psi), int(noise))
 
     prev_time = time.time()
 
