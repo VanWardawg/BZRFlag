@@ -67,12 +67,12 @@ class Zealot(threading.Thread):
         enemyLoc = self.enemiesFilters[index].H*self.enemiesFilters[index].Ut;
         if self.printTime %10 == 0:
             print "Enemy " + str(index) + " at: " + str(enemyLoc);
-        if self.printTime <10:
-            Et = self.enemiesFilters[index].Et;
-            x = math.sqrt(Et[0,0]);
-            y = math.sqrt(Et[3,3]);
-            rho = Et[0,3]/(x*y);
-            self.plotter.kalman_plot(self.printTime,x,y,rho)
+        # if self.printTime <10:
+        #     Et = self.enemiesFilters[index].Et;
+        #     x = math.sqrt(Et[0,0]);
+        #     y = math.sqrt(Et[3,3]);
+        #     rho = Et[0,3]/(x*y);
+        #     self.plotter.kalman_plot(self.printTime,x,y,rho)
         self.nexus.grid.hitSquare(int(enemyLoc[0][0])+400,int(enemyLoc[1])+400);
         self.nexus.gridPlotter.update_grid(self.nexus.grid.filterGrid)
         self.nexus.gridPlotter.draw_grid()
