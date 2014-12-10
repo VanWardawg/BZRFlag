@@ -4,6 +4,7 @@ import time
 from numpy import *
 from random import randrange
 from grid_filter_gl import GridFilter
+from fields import PotentialFieldPlotter
 import threading
 from bzrc import BZRC, Command, UnexpectedResponse, Location
 
@@ -23,6 +24,7 @@ class Zealot(threading.Thread):
         self.deltaT = .5;
         self.printTime = 0;
         print "Zealot " + str(index) + " ready to go!"
+        self.plotter = PotentialFieldPlotter()
 
     def run(self):
         prev_time = time.time()
@@ -74,6 +76,12 @@ class Zealot(threading.Thread):
         enemyLoc = self.enemiesFilters[index].H*self.enemiesFilters[index].Ut;
         if self.printTime %10 == 0:
             print "Enemy " + str(index) + " at: " + str(enemyLoc);
+        # if self.printTime <10:
+        #     Et = self.enemiesFilters[index].Et;
+        #     x = math.sqrt(Et[0,0]);
+        #     y = math.sqrt(Et[3,3]);
+        #     rho = Et[0,3]/(x*y);
+        #     self.plotter.kalman_plot(self.printTime,x,y,rho)
         self.nexus.grid.hitSquare(int(enemyLoc[0][0])+400,int(enemyLoc[1])+400);
         self.nexus.gridPlotter.update_grid(self.nexus.grid.filterGrid)
         self.nexus.gridPlotter.draw_grid()
@@ -185,10 +193,10 @@ class Grid:
         self.filterGrid.fill(.15)
 
     def hitSquare(self, x, y):
-        if x > 800:
-            x = 800;
-        if y > 800:
-            y = 800;
+        if x >= 800:
+            x = 799;
+        if y >= 800:
+            y = 799;
         if x < 0:
             x = 0;
         if y < 0:
@@ -209,10 +217,11 @@ class KalmanFilter(object):
             [0,0,0,100,0,0],
             [0,0,0,0,.1,0],
             [0,0,0,0,0,.1]]);
-        #choose 2 because 100 seemed like too large
+        #choose 2 because 100 seemed like too large -- this is the number to tweak in 
+        # refining our filter
         self.Ex = matrix([[.1,0,0,0,0,0],
             [0,.1,0,0,0,0],
-            [0,0,2,0,0,0],
+            [0,0,10,0,0,0],
             [0,0,0,.1,0,0],
             [0,0,0,0,.1,0],
             [0,0,0,0,0,2]])

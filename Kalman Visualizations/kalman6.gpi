@@ -1,0 +1,14 @@
+set xrange [-100: 100]
+set yrange [-100: 100]
+set pm3d
+set view map
+unset key
+set size square
+
+set palette model RGB functions 1-gray, 1-gray, 1-gray
+set isosamples 100
+sigma_x = 3.34879365983
+sigma_y = 3.34309818041
+rho = 0.0
+splot 1.0/(2.0 * pi * sigma_x * sigma_y * sqrt(1 - rho**2) ) * exp(-1.0/2.0 * (x**2 / sigma_x**2 + y**2 / sigma_y**2 - 2.0*rho*x*y/(sigma_x*sigma_y) ) ) with pm3d
+

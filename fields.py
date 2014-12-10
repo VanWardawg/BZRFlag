@@ -45,7 +45,7 @@ class PotentialFieldPlotter(object):
         # Constants
 
         # Output file:
-        self.FILENAME = 'fields.gpi'
+        self.FILENAME = 'kalman'
         # Size of the world (one of the "constants" in bzflag):
         self.WORLDSIZE = 800
         # How many samples to take along each dimension:
@@ -89,6 +89,8 @@ class PotentialFieldPlotter(object):
         s = ''
         s += 'set xrange [%s: %s]\n' % (minimum, maximum)
         s += 'set yrange [%s: %s]\n' % (minimum, maximum)
+        s += 'set pm3d\n'
+        s += 'set view map\n'
         # The key is just clutter.  Get rid of it:
         s += 'unset key\n'
         # Make sure the figure is square since the world is square:
@@ -96,6 +98,31 @@ class PotentialFieldPlotter(object):
         # Add a pretty title (optional):
         #s += "set title 'Potential Fields'\n"
         return s
+
+    def generate_kalman_field(self,sigmax,sigmay,rho):
+        s = 'set palette model RGB functions 1-gray, 1-gray, 1-gray\n'
+        s += 'set isosamples 100\n'
+        s += 'sigma_x = %s\n' %(sigmax)
+        s += 'sigma_y = %s\n' % (sigmay)
+        s += 'rho = %s\n' %(rho)
+        s += 'splot 1.0/(2.0 * pi * sigma_x * sigma_y * sqrt(1 - rho**2) ) * exp(-1.0/2.0 * (x**2 / sigma_x**2 + y**2 / sigma_y**2 - 2.0*rho*x*y/(sigma_x*sigma_y) ) ) with pm3d\n'
+        return s;
+
+    def kalman_plot(self,i,x,y,rho):
+        ########################################################################
+        # Plot the potential fields to a file
+
+        # self.obstacles = obstacles
+        outfile = open(self.FILENAME + str(i) + ".gpi", 'w')
+        print >>outfile, self.gnuplot_header(-100, 100)
+        # print >>outfile, self.draw_obstacles(self.obstacles)
+        print >>outfile, self.generate_kalman_field(x,y,rho)
+        # plot = subprocess.Popen(['gnuplot','-p'], stdin=subprocess.PIPE)
+        # plot.communicate("""set term png
+        #     set output 'kalman.png'
+        #     load 'kalman.gpi'
+        #     pause 7
+        #     exit""")
 
     def draw_line(self, p1, p2):
         '''Return a string to tell Gnuplot to draw a line from point p1 to
