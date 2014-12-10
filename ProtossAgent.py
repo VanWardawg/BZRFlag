@@ -1,6 +1,7 @@
 import sys
 import math
 import time
+import matplotlib.pyplot as plt
 from numpy import *
 from random import randrange
 from grid_filter_gl import GridFilter
@@ -62,11 +63,12 @@ class Zealot(threading.Thread):
         if not index in self.enemiesFilters.keys():
             enemyFlag = self.nexus.get_enemy_flag(enemy.color);
             self.enemiesFilters[index] = KalmanFilter(self.deltaT,self.noise,enemyFlag.x,enemyFlag.y)
+        enemyFuture = self.enemiesFilters[index].predict_location(self.deltaT)
         self.enemiesFilters[index].calc_location(enemy.x,enemy.y);
         self.printTime +=1
         enemyLoc = self.enemiesFilters[index].H*self.enemiesFilters[index].Ut;
         if self.printTime %10 == 0:
-            print "Enemy " + str(index) + " at: " + str(enemyLoc);
+            print "Enemy " + str(index) + " at: " + str(enemyLoc) + "\npredicted at: " + str(enemyFuture) + "\nobserved at: " + str(str(enemy.x) + "," + str(enemy.y));
         # if self.printTime <10:
         #     Et = self.enemiesFilters[index].Et;
         #     x = math.sqrt(Et[0,0]);
@@ -188,7 +190,7 @@ class Grid:
             x = 0;
         if y < 0:
             y = 0;
-        self.filterGrid[y][x] = 1;
+        self.filterGrid[y][x] = 10;
 
 # this filter is a per tank thing, when we get the enemy tanks match their filter
 # by index in a dictionary?
@@ -233,11 +235,11 @@ class KalmanFilter(object):
 
     # this is called at each time step deltaT to recalculate locations based
     # on observed position x and y
-    # because of mentioned error Et is reset every 10 seconds
+    # because of mentioned error Et is reset every 100 seconds
     def calc_location(self, x, y):
-        if self.reset - time.time() > 1000:
+        if time.time() - self.reset > 100:
             self.reset = time.time()
-            self.Et = numpy.matrix([[x,0,0,0,0,0],
+            self.Et = matrix([[x,0,0,0,0,0],
             [0,.1,0,0,0,0],
             [0,0,.1,0,0,0],
             [0,0,0,y,0,0],
@@ -261,7 +263,7 @@ class KalmanFilter(object):
 
     # this is used to predict the location of a tank a given time in the future
     def predict_location(self,time):
-        F = numpy.matrix([[1,time,pow(time,2)/2,0,0,0],
+        F = matrix([[1,time,pow(time,2)/2,0,0,0],
             [0,1,time,0,0,0],
             [0,0,1,0,0,0],
             [0,0,0,1,time,pow(time,2)/2],
