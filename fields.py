@@ -108,12 +108,12 @@ class PotentialFieldPlotter(object):
         s += 'splot 1.0/(2.0 * pi * sigma_x * sigma_y * sqrt(1 - rho**2) ) * exp(-1.0/2.0 * (x**2 / sigma_x**2 + y**2 / sigma_y**2 - 2.0*rho*x*y/(sigma_x*sigma_y) ) ) with pm3d\n'
         return s;
 
-    def kalman_plot(self,i,x,y,rho):
+    def kalman_plot(self,filename,i,x,y,rho):
         ########################################################################
         # Plot the potential fields to a file
 
         # self.obstacles = obstacles
-        outfile = open(self.FILENAME + str(i) + ".gpi", 'w')
+        outfile = open(filename + str(i) + ".gpi", 'w')
         print >>outfile, self.gnuplot_header(-100, 100)
         # print >>outfile, self.draw_obstacles(self.obstacles)
         print >>outfile, self.generate_kalman_field(x,y,rho)

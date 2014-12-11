@@ -76,14 +76,14 @@ class Zealot(threading.Thread):
         self.enemiesFilters[index].calc_location(enemy.x,enemy.y);
         self.printTime +=1
         enemyLoc = self.enemiesFilters[index].H*self.enemiesFilters[index].Ut;
-        if self.printTime %10 == 0:
-            print "Enemy " + str(index) + " at: " + str(enemyLoc) + "\npredicted at: " + str(enemyFuture) + "\nobserved at: " + str(str(enemy.x) + "," + str(enemy.y));
-        # if self.printTime <10:
+        # if self.printTime %10 == 0:
+        # if self.printTime >=10 and self.printTime < 20 and index == 0:
+        #     print "Enemy " + str(index) + " at: " + str(enemyLoc) + "\npredicted at: " + str(enemyFuture) + "\nobserved at: " + str(str(enemy.x) + "," + str(enemy.y));
         #     Et = self.enemiesFilters[index].Et;
         #     x = math.sqrt(Et[0,0]);
         #     y = math.sqrt(Et[3,3]);
         #     rho = Et[0,3]/(x*y);
-        #     self.plotter.kalman_plot(self.printTime,x,y,rho)
+        #     self.plotter.kalman_plot('wild',self.printTime,x,y,rho)
         self.nexus.grid.hitSquare(int(enemyLoc[0][0])+400,int(enemyLoc[1])+400);
         self.nexus.gridPlotter.update_grid(self.nexus.grid.filterGrid)
         self.nexus.gridPlotter.draw_grid()
