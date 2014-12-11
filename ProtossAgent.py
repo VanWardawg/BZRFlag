@@ -57,14 +57,19 @@ class Zealot(threading.Thread):
 
             #see if enemy is within range, then predict location for a given time when 
             #trajetories would match
-            dist = math.sqrt(math.pow((enemyTank.x - self.me.x),2) + math.pow((enemyTank.y - self.me.y),2));
-            self.rotate_to_enemy(-10)
+            curr_dist = math.sqrt(math.pow((enemyTank.x - self.me.x),2) + math.pow((enemyTank.y - self.me.y),2));
             bullet_speed = 0 + self.constants["bulletspeed"] 
             # when the tank actually moves, the bullet_speed is increased by self.me.speed
+            curr_time_till_shot_hits = curr_dist / bullet_speed
 
-            print 'dist ' + str(dist)
+            future_enemy_location = get_future_enemy_location(enemyTanks[0], curr_time_till_shot_hits)
+
+            self.rotate_to_enemy(-10)
+
+            print 'curr_dist ' + str(curr_dist)
             print 'ang ' + str(self.me.angle)
-            print 'bullet speed ' + str(bullet_speed)
+            print 'curr_time_till_shot_hits ' + str(curr_time_till_shot_hits)
+            print 'future_enemy_location ' + str(future_enemy_location)
 
         results = self.nexus.do_commands(self.commands)
 
@@ -87,6 +92,11 @@ class Zealot(threading.Thread):
         self.nexus.grid.hitSquare(int(enemyLoc[0][0])+400,int(enemyLoc[1])+400);
         self.nexus.gridPlotter.update_grid(self.nexus.grid.filterGrid)
         self.nexus.gridPlotter.draw_grid()
+
+    def get_future_enemy_location(self, enemy, curr_time_till_shot_hits):
+        enemyFlag = self.nexus.get_enemy_flag(enemy.color);
+        enemy_filter = KalmanFilter(self.deltaT,self.noise,enemyFlag.x,enemyFlag.y)
+        return enemy_filter.predict_location()
 
     def shoot(self):
         command = Command(self.me.index, 0, 0,True)
