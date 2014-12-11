@@ -24,6 +24,7 @@ import sys
 import math
 import time
 from random import randrange
+import random
 
 from bzrc import BZRC, Command
 
@@ -37,6 +38,8 @@ class Agent(object):
         self.moveTime = randrange(3,8)
         self.time = 0
         self.type = type
+        self.prevSpeed = 1
+        self.brakeCountDown = 0
 
     def tick(self, time_diff):
         """Some time has passed; decide what to do next."""
@@ -50,13 +53,36 @@ class Agent(object):
         self.enemies = [tank for tank in othertanks if tank.color !=
                         self.constants['team']]
         self.commands = []
-        if self.type == 'Duck': #The first tank is a "sitting duck" and doesn't move
+        if self.type == 'Duck' or self.type == 'duck': #The first tank is a "sitting duck" and doesn't move
             return
-        for tank in mytanks:
-            if self.moveTime > 0:
-                self.move_forward(tank)
-                self.angleTime = 0
-            print tank.x,tank.y
+        if self.type == 'Constant' or self.type == 'constant':
+            for tank in mytanks:
+                if tank.index != 0:
+                    break
+                if self.moveTime > 0:
+                    self.move_forward(tank)
+                    self.angleTime = 0
+        if self.type == 'Wild' or self.type == 'wild':
+            for tank in mytanks:
+                if tank.index != 0:
+                    break
+                if self.moveTime > 0:
+                    if self.prevSpeed < .2:
+                        self.brakeCountDown -= 1
+                    if self.brakeCountDown < 1:
+                        randSpeed = random.random() # makes a random number between 0 and 1.0
+                        if randSpeed < .2:
+                            self.brakeCountDown = 3
+                            self.prevSpeed = randSpeed
+                        else:
+                            self.prevSpeed = 1
+                            # this will make the tank go full speed most of the time, 
+                            # then randomly hit the brakes
+                    randDegree = randrange(-60, 60)
+                    # these random numbers will make it hard for the agent to predict the movements
+                    self.move_rand_degrees(tank, self.prevSpeed, randDegree)
+                    # self.move_forward(tank)
+                    self.angleTime = 0
 
         if self.moveTime < 0 and (time_diff - self.angleTime > 2):
             self.moveTime = randrange(3,8)
@@ -65,6 +91,11 @@ class Agent(object):
 
     def move_sixty_degrees(self, tank):
         command = Command(tank.index, 1, 60, False)
+        self.commands.append(command)
+
+    def move_rand_degrees(self, tank, rspeed, degree):
+        print rspeed
+        command = Command(tank.index, rspeed, degree, False)
         self.commands.append(command)
 
     def move_forward(self,tank):
@@ -96,7 +127,7 @@ def main():
     except ValueError:
         execname = sys.argv[0]
         print >>sys.stderr, '%s: incorrect number of arguments' % execname
-        print >>sys.stderr, 'usage: %s hostname port' % sys.argv[0]
+        print >>sys.stderr, 'usage: %s hostname port type' % sys.argv[0]
         sys.exit(-1)
 
     # Connect.

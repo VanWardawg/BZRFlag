@@ -44,18 +44,27 @@ class Zealot(threading.Thread):
         self.me = self.nexus.get_zealot(self.myIndex)
 
         if time_diff - self.shootTime > 1:
-            #see if enemy is within range, then predict location for a given time when 
-            #trajetories would match
-            # dist = math.sqrt(math.pow((enemyTank.x - self.me.x),2) + math.pow((enemyTank.y - self.me.y),2));
             self.shoot()
             self.shootTime = time_diff
 
         if time_diff - self.calculateEnemyLocation > (self.deltaT):
             #every deltaT time (.5 seconds) calculate the new location of enemies
             enemyTanks = self.nexus.get_enemies();
+            enemyTank = enemyTanks[0]
             for i in range(0,len(enemyTanks)):
                 self.calc_enemy_location(i,enemyTanks[i])
             self.calculateEnemyLocation = time_diff
+
+            #see if enemy is within range, then predict location for a given time when 
+            #trajetories would match
+            dist = math.sqrt(math.pow((enemyTank.x - self.me.x),2) + math.pow((enemyTank.y - self.me.y),2));
+            self.rotate_to_enemy(-10)
+            bullet_speed = 0 + self.constants["bulletspeed"] 
+            # when the tank actually moves, the bullet_speed is increased by self.me.speed
+
+            print 'dist ' + str(dist)
+            print 'ang ' + str(self.me.angle)
+            print 'bullet speed ' + str(bullet_speed)
 
         results = self.nexus.do_commands(self.commands)
 
@@ -81,6 +90,10 @@ class Zealot(threading.Thread):
 
     def shoot(self):
         command = Command(self.me.index, 0, 0,True)
+        self.commands.append(command)
+
+    def rotate_to_enemy(self, angle):
+        command = Command(self.me.index, 0, angle, False)
         self.commands.append(command)
 
     def normalize_angle(self, angle):
@@ -280,7 +293,7 @@ def main():
     except ValueError:
         execname = sys.argv[0]
         print >>sys.stderr, '%s: incorrect number of arguments' % execname
-        print >>sys.stderr, 'usage: %s hostname port' % sys.argv[0]
+        print >>sys.stderr, 'usage: %s hostname port psi noise' % sys.argv[0]
         sys.exit(-1)
 
     # Connect.
