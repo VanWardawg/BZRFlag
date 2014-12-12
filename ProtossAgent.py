@@ -50,21 +50,52 @@ class Zealot(threading.Thread):
         if time_diff - self.calculateEnemyLocation > (self.deltaT):
             #every deltaT time (.5 seconds) calculate the new location of enemies
             enemyTanks = self.nexus.get_enemies();
-            enemyTank = enemyTanks[0]
+            enemyTank = enemyTanks[2]
             for i in range(0,len(enemyTanks)):
                 self.calc_enemy_location(i,enemyTanks[i])
             self.calculateEnemyLocation = time_diff
 
             #see if enemy is within range, then predict location for a given time when 
             #trajetories would match
-            dist = math.sqrt(math.pow((enemyTank.x - self.me.x),2) + math.pow((enemyTank.y - self.me.y),2));
-            self.rotate_to_enemy(-10)
-            bullet_speed = 0 + self.constants["bulletspeed"] 
-            # when the tank actually moves, the bullet_speed is increased by self.me.speed
+            curr_dist = math.sqrt(math.pow((enemyTank.x - self.me.x),2) + math.pow((enemyTank.y - self.me.y),2));
+            bullet_speed = 0 + int(self.constants["shotspeed"]) 
+            # todo: when the tank actually moves, the bullet_speed is increased by self.me.speed
+            curr_time_till_shot_hits = curr_dist / bullet_speed
 
-            print 'dist ' + str(dist)
-            print 'ang ' + str(self.me.angle)
-            print 'bullet speed ' + str(bullet_speed)
+            #convert the current tank's angle to degrees because their angle value is as messed up as a zergling's mating rutual
+            my_angle_in_degrees = 0
+            if self.me.angle >= 0:
+                my_angle_in_degrees = 180 * (self.me.angle / 3.14)
+            else:
+                my_angle_in_degrees = 180 + (180 - (180 * (-1 * self.me.angle) / 3.14))
+
+            future_enemy_location = self.get_future_enemy_location(enemyTank, curr_time_till_shot_hits)
+
+            #get the distance and direction of the enemy tank
+            distance = [future_enemy_location[0] - self.me.x, future_enemy_location[1] - self.me.y]
+            norm = math.sqrt(distance[0] ** 2 + distance[1] ** 2)
+            direction = [distance[0] / norm, distance[1] / norm]
+
+            goal_angle_in_degrees = math.degrees(math.atan2(distance[1], distance[0]))
+            if goal_angle_in_degrees < 0:
+                goal_angle_in_degrees = (180 - (-1) * goal_angle_in_degrees) + 180
+            angle_diff = -1 * (my_angle_in_degrees - goal_angle_in_degrees)
+            relative_angle = 2 * self.normalize_angle(angle_diff)
+            # if angle_diff > 180:
+            #     angle_diff -= 180
+            # if angle_diff < -180:
+            #     angle_diff += 180
+
+            # if(angle_diff < 0 and angle_diff > -180):
+
+
+            self.rotate_to_enemy(angle_diff / 10)
+
+            # print 'dist ' + str(distance)
+            print 'ang ' + str(my_angle_in_degrees) + ' ' + str(goal_angle_in_degrees)
+            print 'goal diff: ' + str(angle_diff)
+            print 'relative diff ' + str(relative_angle)
+            print ''
 
         results = self.nexus.do_commands(self.commands)
 
@@ -87,6 +118,11 @@ class Zealot(threading.Thread):
         self.nexus.grid.hitSquare(int(enemyLoc[0][0])+400,int(enemyLoc[1])+400);
         self.nexus.gridPlotter.update_grid(self.nexus.grid.filterGrid)
         self.nexus.gridPlotter.draw_grid()
+
+    def get_future_enemy_location(self, enemy, curr_time_till_shot_hits):
+        enemyFlag = self.nexus.get_enemy_flag(enemy.color);
+        enemy_filter = KalmanFilter(self.deltaT,self.noise,enemyFlag.x,enemyFlag.y)
+        return enemy_filter.predict_location(curr_time_till_shot_hits)
 
     def shoot(self):
         command = Command(self.me.index, 0, 0,True)
